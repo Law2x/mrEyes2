@@ -2,7 +2,7 @@
 import express from 'express';
 import fetchPkg from 'node-fetch';
 
-// use global fetch if Node provides it (Node 18+), else node-fetch
+// use global fetch if available (Node 18+), else use node-fetch
 const fetchFn = (typeof fetch !== 'undefined') ? fetch : fetchPkg;
 
 const BOT_TOKEN = process.env.BOT_TOKEN;
@@ -20,13 +20,12 @@ const TELEGRAM_API = `https://api.telegram.org/bot${BOT_TOKEN}`;
 // STATE (in-memory)
 // ---------------------------------------------------------------------
 
-// customer sessions: chatId -> { step, amount, name, phone, address, coords, ... }
+// chatId -> session
 const sessions = new Map();
 
-// admin message map: adminMessageId -> { customerChatId, orderId }
+// adminMessageId -> { customerChatId, orderId }
 const adminMessageMap = new Map();
 
-// simple auto-increment for order ids (for display)
 let orderCounter = 1;
 
 // ---------------------------------------------------------------------
@@ -38,6 +37,12 @@ function getSession(chatId) {
     sessions.set(chatId, {});
   }
   return sessions.get(chatId);
+}
+
+function ensureCart(session) {
+  if (!session.cart) {
+    session.cart = [];
+  }
 }
 
 async function tgSendMessage(chatId, text, extra = {}) {
@@ -77,44 +82,64 @@ async function tgSendLocation(chatId, latitude, longitude) {
   });
 }
 
-// inline keyboards
-const AMOUNTS = ['₱500', '₱700', '₱1,000', 'Half G', '1G'];
+// build product keyboard based on category + add/view/checkout
+function buildAmountKeyboard(session) {
+  const cat = session.category;
 
-function amountInlineKeyboard() {
-  return {
-    inline_keyboard: AMOUNTS.map(a => [{ text: a, callback_data: `amt:${a}` }])
-  };
-}
+  const actionRow = [
+    { text: '🛒 Add to cart', callback_data: 'cart:add' },
+    { text: '🧾 View cart', callback_data: 'cart:view' },
+    { text: '✅ Checkout', callback_data: 'cart:checkout' }
+  ];
 
-function nameInlineKeyboard() {
-  return {
-    inline_keyboard: [
-      [{ text: '👤 Use my Telegram name', callback_data: 'name:auto' }],
-      [{ text: '⌨️ I will type my name', callback_data: 'name:manual' }]
-    ]
-  };
-}
+  // SACHET: full list
+  if (cat === 'sachet') {
+    return {
+      inline_keyboard: [
+        [
+          { text: '₱500', callback_data: 'amt:₱500' },
+          { text: '₱700', callback_data: 'amt:₱700' }
+        ],
+        [
+          { text: '₱1,000', callback_data: 'amt:₱1,000' },
+          { text: 'Half G', callback_data: 'amt:Half G' }
+        ],
+        [
+          { text: '1G', callback_data: 'amt:1G' }
+        ],
+        actionRow
+      ]
+    };
+  }
 
-function confirmInlineKeyboard() {
+  // SYRINGE: only 500, 700, 1,000
+  if (cat === 'syringe') {
+    return {
+      inline_keyboard: [
+        [
+          { text: '₱500', callback_data: 'amt:₱500' },
+          { text: '₱700', callback_data: 'amt:₱700' }
+        ],
+        [
+          { text: '₱1,000', callback_data: 'amt:₱1,000' }
+        ],
+        actionRow
+      ]
+    };
+  }
+
+  // fallback (no category yet)
   return {
     inline_keyboard: [
       [
-        { text: '✅ Confirm', callback_data: 'order:confirm' },
-        { text: '❌ Cancel', callback_data: 'order:cancel' }
+        { text: '💧 Sachet', callback_data: 'cat:sachet' },
+        { text: '💉 Syringe', callback_data: 'cat:syringe' }
       ]
     ]
   };
 }
 
-function restartInlineKeyboard() {
-  return {
-    inline_keyboard: [
-      [{ text: '🔁 Start new order', callback_data: 'order:restart' }]
-    ]
-  };
-}
-
-// reverse geocode
+// reverse geocode for nicer address
 async function reverseGeocode(lat, lon) {
   try {
     const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${encodeURIComponent(
@@ -132,7 +157,7 @@ async function reverseGeocode(lat, lon) {
   }
 }
 
-// send order to admin + store admin message -> customer
+// send to admin and remember mapping
 async function sendOrderToAdmin(session, from) {
   if (!ADMIN_CHAT_ID || Number.isNaN(ADMIN_CHAT_ID)) {
     console.error('ADMIN_CHAT_ID not configured, skipping admin send.');
@@ -143,31 +168,42 @@ async function sendOrderToAdmin(session, from) {
     timeZone: 'Asia/Manila'
   });
 
+  // build items text (from cart if present)
+  let itemsText = '';
+  if (session.cart && session.cart.length) {
+    itemsText = session.cart
+      .map(
+        (item, idx) => `${idx + 1}. ${item.category} — ${item.amount}`
+      )
+      .join('\n');
+  } else {
+    itemsText = `${session.category || 'N/A'} — ${session.amount || 'N/A'}`;
+  }
+
   const coordsText = session.coords
     ? `${session.coords.latitude}, ${session.coords.longitude}`
     : 'N/A';
 
-  // create an order id
   const orderId = orderCounter++;
 
   const adminText = `
 🧊 NEW ORDER (#${orderId})
 
-💰 Amount: ${session.amount || 'N/A'}
+🧺 Items:
+${itemsText}
+
 👤 Name: ${session.name || 'N/A'}
 📱 Phone: ${session.phone || 'N/A'}
 📍 Address: ${session.address || 'N/A'}
 🗺️ Coords: ${coordsText}
 
-💡 To send tracking, just REPLY to this message with the link.
+💡 Reply to THIS message to send tracking to this customer.
 ⏰ ${timestamp}
   `.trim();
 
-  // send to admin
   const resp = await tgSendMessage(ADMIN_CHAT_ID, adminText);
   const data = await resp.json().catch(() => null);
 
-  // if sent OK, remember which admin message is tied to which customer
   if (data && data.ok) {
     const adminMessageId = data.result.message_id;
     adminMessageMap.set(adminMessageId, {
@@ -176,7 +212,6 @@ async function sendOrderToAdmin(session, from) {
     });
   }
 
-  // optional: also send location to admin if available
   if (session.coords) {
     await tgSendLocation(
       ADMIN_CHAT_ID,
@@ -190,24 +225,22 @@ async function sendOrderToAdmin(session, from) {
 // UPDATE HANDLERS
 // ---------------------------------------------------------------------
 
-// regular text / commands
 async function handleMessage(message) {
   const chatId = message.chat.id;
   const from = message.from;
   const text = message.text || '';
   const session = getSession(chatId);
 
-  // 1) ADMIN replying to a specific order (swipe-to-reply)
+  // 1) ADMIN replied to an order (swipe-to-reply)
   if (chatId === ADMIN_CHAT_ID && message.reply_to_message) {
     const repliedMsgId = message.reply_to_message.message_id;
     const info = adminMessageMap.get(repliedMsgId);
 
     if (!info) {
-      await tgSendMessage(chatId, 'I don’t know which customer this is for.');
+      await tgSendMessage(chatId, 'I don’t know which customer this belongs to.');
       return;
     }
 
-    // forward admin reply to customer
     await tgSendMessage(
       info.customerChatId,
       `🚚 Update for your order #${info.orderId}:\n${text}`
@@ -215,53 +248,63 @@ async function handleMessage(message) {
 
     await tgSendMessage(
       chatId,
-      `✅ Sent update to customer of order #${info.orderId}`
+      `✅ Sent to customer of order #${info.orderId}`
     );
     return;
   }
 
-  // 2) customer start
+  // 2) /start
   if (text === '/start') {
-    sessions.set(chatId, { step: 'choose_amount' });
+    sessions.set(chatId, { step: 'choose_category', cart: [] });
     await tgSendMessage(
       chatId,
-      '🧊 Welcome to IceOrderBot!\n\nPlease select an amount:',
-      { reply_markup: amountInlineKeyboard() }
+      '🧊 *IceOrderBot*\nChoose product type 👇',
+      {
+        parse_mode: 'Markdown',
+        reply_markup: {
+          inline_keyboard: [
+            [
+              { text: '💧 Sachet', callback_data: 'cat:sachet' },
+              { text: '💉 Syringe', callback_data: 'cat:syringe' }
+            ]
+          ]
+        }
+      }
     );
     return;
   }
 
-  // 3) customer is typing name manually
-  if (session.step === 'wait_name_text') {
+  // 3) user typed name (after checkout)
+  if (session.step === 'ask_name') {
     session.name = text.trim();
     session.step = 'request_phone';
 
-    await tgSendMessage(chatId, `Thanks, ${session.name}! Now please share your phone:`);
-    await tgSendMessage(chatId, 'Tap the button to share your phone:', {
-      reply_markup: {
-        keyboard: [
-          [{ text: '📱 Share Phone Number', request_contact: true }]
-        ],
-        resize_keyboard: true,
-        one_time_keyboard: true
+    await tgSendMessage(
+      chatId,
+      '📱 Please share your phone number:',
+      {
+        reply_markup: {
+          keyboard: [
+            [{ text: '📱 Share Phone Number', request_contact: true }]
+          ],
+          resize_keyboard: true,
+          one_time_keyboard: true
+        }
       }
-    });
+    );
     return;
   }
 
-  // 4) customer typed while waiting for confirm
+  // 4) user typed something while we want confirm
   if (session.step === 'confirm') {
     await tgSendMessage(chatId, 'Please tap ✅ Confirm or ❌ Cancel above.');
     return;
   }
 
-  // 5) fallback
-  await tgSendMessage(chatId, 'Please /start to begin an order.', {
-    reply_markup: amountInlineKeyboard()
-  });
+  // fallback
+  await tgSendMessage(chatId, 'Please /start to begin.');
 }
 
-// customer shared contact
 async function handleContact(message) {
   const chatId = message.chat.id;
   const session = getSession(chatId);
@@ -269,25 +312,29 @@ async function handleContact(message) {
 
   const phone = message.contact?.phone_number;
   if (!phone) {
-    await tgSendMessage(chatId, 'No phone number received. Please try again.');
+    await tgSendMessage(chatId, '❗ No phone number received. Try again.');
     return;
   }
 
   session.phone = phone;
   session.step = 'request_location';
 
-  await tgSendMessage(chatId, 'Great 👍 Now share your delivery location:', {
-    reply_markup: {
-      keyboard: [
-        [{ text: '📍 Share Location', request_location: true }]
-      ],
-      resize_keyboard: true,
-      one_time_keyboard: true
+  await tgSendMessage(
+    chatId,
+    '📍 **Step 4/4**\nSend your delivery location.\nTip: tap the button below 👇',
+    {
+      parse_mode: 'Markdown',
+      reply_markup: {
+        keyboard: [
+          [{ text: '📍 Share Location', request_location: true }]
+        ],
+        resize_keyboard: true,
+        one_time_keyboard: true
+      }
     }
-  });
+  );
 }
 
-// customer shared location
 async function handleLocation(message) {
   const chatId = message.chat.id;
   const session = getSession(chatId);
@@ -295,7 +342,7 @@ async function handleLocation(message) {
 
   const loc = message.location;
   if (!loc) {
-    await tgSendMessage(chatId, 'Location not received, please try again.');
+    await tgSendMessage(chatId, '❗ Location not received, please try again.');
     return;
   }
 
@@ -306,27 +353,44 @@ async function handleLocation(message) {
   session.address = address;
   session.step = 'confirm';
 
-  const summary = `
-📋 Order Summary:
+  const itemsText = (session.cart && session.cart.length)
+    ? session.cart.map((it, i) => `${i + 1}. ${it.category} — ${it.amount}`).join('\n')
+    : `${session.category || 'N/A'} — ${session.amount || 'N/A'}`;
 
-💰 Amount: ${session.amount || 'N/A'}
+  const summary = `
+📋 *Order Summary*
+
+🧺 Items:
+${itemsText}
+
 👤 Name: ${session.name || 'N/A'}
 📱 Phone: ${session.phone || 'N/A'}
-📍 Address: ${address}
-🗺️ Coordinates: ${latitude}, ${longitude}
+
+📍 Address:
+${address}
+
+Please confirm 👇
   `.trim();
 
+  // send summary with confirm/cancel
   await tgSendMessage(chatId, summary, {
-    reply_markup: confirmInlineKeyboard()
+    parse_mode: 'Markdown',
+    reply_markup: {
+      inline_keyboard: [
+        [
+          { text: '✅ Confirm', callback_data: 'order:confirm' },
+          { text: '❌ Cancel', callback_data: 'order:cancel' }
+        ]
+      ]
+    }
   });
 
-  // remove reply keyboard
-  await tgSendMessage(chatId, 'Please confirm above 👆', {
+  // remove big keyboard
+  await tgSendMessage(chatId, ' ', {
     reply_markup: { remove_keyboard: true }
   });
 }
 
-// inline button clicks
 async function handleCallbackQuery(cbq) {
   const data = cbq.data;
   const message = cbq.message;
@@ -336,90 +400,166 @@ async function handleCallbackQuery(cbq) {
 
   const session = getSession(chatId);
 
-  // amount
+  // 1) category selected
+  if (data.startsWith('cat:')) {
+    const category = data.slice(4); // sachet | syringe
+    session.category = category;
+    session.step = 'choose_amount';
+    ensureCart(session);
+
+    await tgEditMessageText(
+      chatId,
+      messageId,
+      `🧊 ${category === 'sachet' ? 'Sachet' : 'Syringe'} selected.\nNow choose amount or add to cart 👇`,
+      {
+        reply_markup: buildAmountKeyboard(session)
+      }
+    );
+    return;
+  }
+
+  // 2) amount selected
   if (data.startsWith('amt:')) {
     const amount = data.slice(4);
-    session.amount = amount;
-    session.step = 'ask_name';
+    session.selectedAmount = amount;
 
     await tgEditMessageText(
       chatId,
       messageId,
-      `Amount selected: ${amount}\n\nHow should I get your name?`,
-      { reply_markup: nameInlineKeyboard() }
-    );
-    return;
-  }
-
-  // name: auto
-  if (data === 'name:auto') {
-    const fullName =
-      [from.first_name, from.last_name].filter(Boolean).join(' ').trim() ||
-      from.username ||
-      'Customer';
-
-    session.name = fullName;
-    session.step = 'request_phone';
-
-    await tgEditMessageText(
-      chatId,
-      messageId,
-      `Name: ${fullName}\n\nNow please share your phone number:`
-    );
-
-    await tgSendMessage(chatId, 'Tap the button to share your phone:', {
-      reply_markup: {
-        keyboard: [
-          [{ text: '📱 Share Phone Number', request_contact: true }]
-        ],
-        resize_keyboard: true,
-        one_time_keyboard: true
+      `🧊 ${session.category === 'syringe' ? 'Syringe' : 'Sachet'} selected.\n💸 Amount: ${amount}\nYou can add to cart, view cart, or checkout 👇`,
+      {
+        reply_markup: buildAmountKeyboard(session)
       }
+    );
+    return;
+  }
+
+  // 3) add to cart
+  if (data === 'cart:add') {
+    ensureCart(session);
+    if (!session.category || !session.selectedAmount) {
+      await tgSendMessage(chatId, '⚠️ Please pick a category and amount first.');
+      return;
+    }
+
+    session.cart.push({
+      category: session.category,
+      amount: session.selectedAmount,
+      addedAt: Date.now()
     });
+
+    await tgSendMessage(
+      chatId,
+      `🛒 Added: ${session.category} — ${session.selectedAmount}`
+    );
+
+    await tgSendMessage(
+      chatId,
+      'You can add more, view cart, or checkout 👇',
+      {
+        reply_markup: buildAmountKeyboard(session)
+      }
+    );
     return;
   }
 
-  // name: manual
-  if (data === 'name:manual') {
-    session.step = 'wait_name_text';
-    await tgEditMessageText(chatId, messageId, 'Okay, please type your name 👇');
+  // 4) view cart
+  if (data === 'cart:view') {
+    ensureCart(session);
+    if (!session.cart.length) {
+      await tgSendMessage(chatId, '🧺 Cart is empty.');
+    } else {
+      const lines = session.cart.map((item, idx) => (
+        `${idx + 1}. ${item.category} — ${item.amount}`
+      ));
+      await tgSendMessage(
+        chatId,
+        `🧾 *Your cart:*\n${lines.join('\n')}`,
+        { parse_mode: 'Markdown' }
+      );
+    }
+
+    await tgSendMessage(
+      chatId,
+      'Continue selecting or checkout 👇',
+      {
+        reply_markup: buildAmountKeyboard(session)
+      }
+    );
     return;
   }
 
-  // confirm order
+  // 5) checkout
+  if (data === 'cart:checkout') {
+    ensureCart(session);
+    if (!session.cart.length && (!session.category || !session.selectedAmount)) {
+      await tgSendMessage(chatId, '🧺 Cart is empty. Add at least 1 item.');
+      return;
+    }
+
+    // if no cart but user picked one item, add it automatically
+    if (!session.cart.length && session.category && session.selectedAmount) {
+      session.cart.push({
+        category: session.category,
+        amount: session.selectedAmount,
+        addedAt: Date.now()
+      });
+    }
+
+    session.step = 'ask_name';
+    await tgSendMessage(chatId, '📝 Please enter your name:');
+    return;
+  }
+
+  // 6) confirm final order
   if (data === 'order:confirm') {
     await sendOrderToAdmin(session, from);
-    // clear session for this customer
+    // clear session
     sessions.set(chatId, {});
     await tgEditMessageText(
       chatId,
       messageId,
       '✅ Thank you! Your order was sent to the admin.',
-      { reply_markup: restartInlineKeyboard() }
+      {
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: '🔁 New Order', callback_data: 'start:new' }]
+          ]
+        }
+      }
     );
     return;
   }
 
-  // cancel
+  // 7) cancel final order
   if (data === 'order:cancel') {
     sessions.set(chatId, {});
     await tgEditMessageText(
       chatId,
       messageId,
-      '❌ Order canceled. You can start again anytime.',
-      { reply_markup: restartInlineKeyboard() }
+      '❌ Order canceled. You can /start again.'
     );
     return;
   }
 
-  // restart
-  if (data === 'order:restart') {
-    sessions.set(chatId, { step: 'choose_amount' });
+  // 8) restart
+  if (data === 'start:new') {
+    sessions.set(chatId, { step: 'choose_category', cart: [] });
     await tgEditMessageText(
       chatId,
       messageId,
-      '🧊 New order — please select an amount:',
-      { reply_markup: amountInlineKeyboard() }
+      '🧊 *IceOrderBot*\nChoose product type 👇',
+      {
+        parse_mode: 'Markdown',
+        reply_markup: {
+          inline_keyboard: [
+            [
+              { text: '💧 Sachet', callback_data: 'cat:sachet' },
+              { text: '💉 Syringe', callback_data: 'cat:syringe' }
+            ]
+          ]
+        }
+      }
     );
     return;
   }
@@ -432,7 +572,7 @@ async function handleCallbackQuery(cbq) {
 const app = express();
 app.use(express.json());
 
-// Telegram will POST updates here
+// Telegram will POST here
 const secretPath = `/telegraf/${BOT_TOKEN}`;
 
 app.post(secretPath, async (req, res) => {
@@ -455,7 +595,6 @@ app.post(secretPath, async (req, res) => {
     console.error('Error handling update:', err);
   }
 
-  // always answer Telegram fast
   res.sendStatus(200);
 });
 

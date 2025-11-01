@@ -1,3 +1,5 @@
+// index.js
+import express from 'express';
 import { Telegraf, Markup, session } from 'telegraf';
 import fetchPkg from 'node-fetch';
 
@@ -5,39 +7,42 @@ const fetchFn = (typeof fetch !== 'undefined') ? fetch : fetchPkg;
 
 const BOT_TOKEN = process.env.BOT_TOKEN;
 const ADMIN_CHAT_ID = process.env.ADMIN_CHAT_ID ? Number(process.env.ADMIN_CHAT_ID) : NaN;
+const HOST_URL = process.env.HOST_URL; // e.g. https://your-app.onrender.com
+const PORT = process.env.PORT || 3000;
 
+// basic checks
 if (!BOT_TOKEN) {
   throw new Error('BOT_TOKEN is required');
+}
+if (!HOST_URL) {
+  console.warn('⚠️ HOST_URL is not set. Webhook URL will not be set automatically.');
 }
 
 const bot = new Telegraf(BOT_TOKEN);
 
-// your original amounts
+// your amounts
 const AMOUNTS = ['₱500', '₱700', '₱1,000', 'Half G', '1G'];
 
-// helpers to build inline keyboards
+// inline keyboard builders
 function amountInlineKeyboard() {
   return Markup.inlineKeyboard(
     AMOUNTS.map(a => [Markup.button.callback(a, `amt:${a}`)])
   );
 }
-
 function nameInlineKeyboard() {
   return Markup.inlineKeyboard([
     [Markup.button.callback('👤 Use my Telegram name', 'name:auto')],
     [Markup.button.callback('⌨️ I will type my name', 'name:manual')]
   ]);
 }
-
 function confirmInlineKeyboard() {
   return Markup.inlineKeyboard([
     [
       Markup.button.callback('✅ Confirm', 'order:confirm'),
-      Markup.button.callback('❌ Cancel', 'order:cancel')
+      Markup.button.callback('❌ Cancel', 'order:cancel'),
     ]
   ]);
 }
-
 function restartInlineKeyboard() {
   return Markup.inlineKeyboard([
     [Markup.button.callback('🔁 Start new order', 'order:restart')]
@@ -46,16 +51,13 @@ function restartInlineKeyboard() {
 
 bot.use(session());
 
-// /start handler
+// /start
 bot.start(async (ctx) => {
-  // we recommend private chat
   if (ctx.chat && ctx.chat.type !== 'private') {
-    return ctx.reply('Please start a private chat with me to order 🙂');
+    return ctx.reply('Please DM me to order 🙂');
   }
 
-  ctx.session = {
-    step: 'choose_amount'
-  };
+  ctx.session = { step: 'choose_amount' };
 
   return ctx.reply(
     '🧊 Welcome to IceOrderBot!\n\nPlease select an amount:',
@@ -63,13 +65,13 @@ bot.start(async (ctx) => {
   );
 });
 
-// handle inline button presses
+// callback_query (inline)
 bot.on('callback_query', async (ctx) => {
   try {
     ctx.session = ctx.session || {};
     const data = ctx.callbackQuery.data || '';
 
-    // 1) amount selected
+    // amount chosen
     if (data.startsWith('amt:')) {
       const amount = data.slice(4);
       ctx.session.amount = amount;
@@ -82,18 +84,17 @@ bot.on('callback_query', async (ctx) => {
       return ctx.answerCbQuery();
     }
 
-    // 2) name choice
-    if (data === 'name:auto') {
+    // name from telegram
+    if (data === 'name:auto')) {
       const from = ctx.from || {};
-      const fullName = [from.first_name, from.last_name].filter(Boolean).join(' ').trim() || from.username || 'Customer';
+      const fullName = [from.first_name, from.last_name].filter(Boolean).join(' ').trim()
+        || from.username
+        || 'Customer';
+
       ctx.session.name = fullName;
       ctx.session.step = 'request_phone';
 
-      await ctx.editMessageText(
-        `Name: ${fullName}\n\nNow please share your phone number:`
-      );
-
-      // show reply keyboard for contact
+      await ctx.editMessageText(`Name: ${fullName}\n\nNow please share your phone number:`);
       await ctx.reply(
         'Tap the button to share your phone:',
         Markup.keyboard([
@@ -102,30 +103,28 @@ bot.on('callback_query', async (ctx) => {
           .oneTime()
           .resize()
       );
-
-      return ctx.answerCbQuery('Name set from Telegram ✅');
+      return ctx.answerCbQuery('Name set ✅');
     }
 
+    // name manual
     if (data === 'name:manual') {
       ctx.session.step = 'wait_name_text';
-      await ctx.editMessageText(
-        'Okay, please type your name 👇'
-      );
+      await ctx.editMessageText('Okay, please type your name 👇');
       return ctx.answerCbQuery('Type your name');
     }
 
-    // 3) confirm order
+    // confirm
     if (data === 'order:confirm') {
       await sendOrderToAdmin(ctx);
-      ctx.session = {}; // clear
+      ctx.session = {};
       await ctx.editMessageText(
         '✅ Thank you! Your order was sent to the admin.',
         restartInlineKeyboard()
       );
-      return ctx.answerCbQuery('Sent to admin ✅');
+      return ctx.answerCbQuery('Order sent ✅');
     }
 
-    // 4) cancel order
+    // cancel
     if (data === 'order:cancel') {
       ctx.session = {};
       await ctx.editMessageText(
@@ -135,7 +134,7 @@ bot.on('callback_query', async (ctx) => {
       return ctx.answerCbQuery('Canceled');
     }
 
-    // 5) restart
+    // restart
     if (data === 'order:restart') {
       ctx.session = { step: 'choose_amount' };
       await ctx.editMessageText(
@@ -147,24 +146,21 @@ bot.on('callback_query', async (ctx) => {
 
   } catch (err) {
     console.error('callback_query error:', err);
-    try {
-      await ctx.answerCbQuery('Error, please try again.');
-    } catch (_) {}
+    try { await ctx.answerCbQuery('Error, try again'); } catch {}
   }
 });
 
-// handle text messages (for manual name)
+// text (for manual name etc.)
 bot.on('text', async (ctx) => {
   ctx.session = ctx.session || {};
   const step = ctx.session.step;
   const text = ctx.message.text;
 
-  // user is typing their name
   if (step === 'wait_name_text') {
     ctx.session.name = text.trim();
     ctx.session.step = 'request_phone';
 
-    await ctx.reply(`Thanks, ${ctx.session.name}! Now please share your phone number:`);
+    await ctx.reply(`Thanks, ${ctx.session.name}! Now please share your phone:`);
     await ctx.reply(
       'Tap the button to share your phone:',
       Markup.keyboard([
@@ -176,39 +172,30 @@ bot.on('text', async (ctx) => {
     return;
   }
 
-  // if we're in confirm step but user typed something random
   if (step === 'confirm') {
-    // we prefer inline here, so just remind
-    return ctx.reply('Please tap ✅ Confirm or ❌ Cancel on the buttons above.');
+    return ctx.reply('Please tap the buttons (✅ / ❌) above to finish.');
   }
 
-  // fallback
   if (!step || step === 'choose_amount') {
-    return ctx.reply(
-      'Please pick an amount:',
-      amountInlineKeyboard()
-    );
+    return ctx.reply('Please pick an amount:', amountInlineKeyboard());
   }
 
   return ctx.reply('Please follow the steps or /start to begin again.');
 });
 
-// handle contact (reply keyboard)
+// contact
 bot.on('contact', async (ctx) => {
   ctx.session = ctx.session || {};
-  if (ctx.session.step !== 'request_phone') {
-    return;
-  }
+  if (ctx.session.step !== 'request_phone') return;
 
   const contact = ctx.message.contact;
   if (!contact || !contact.phone_number) {
-    return ctx.reply('No phone number received, please try again.');
+    return ctx.reply('No phone number received. Please try again.');
   }
 
   ctx.session.phone = contact.phone_number;
   ctx.session.step = 'request_location';
 
-  // ask for location (must be reply keyboard again)
   await ctx.reply(
     'Great 👍 Now share your delivery location:',
     Markup.keyboard([
@@ -219,18 +206,19 @@ bot.on('contact', async (ctx) => {
   );
 });
 
-// handle location (reply keyboard)
+// location
 bot.on('location', async (ctx) => {
   ctx.session = ctx.session || {};
   if (ctx.session.step !== 'request_location') return;
 
   const loc = ctx.message.location;
-  if (!loc) return ctx.reply('Location not received. Please try again.');
+  if (!loc) {
+    return ctx.reply('Location not received, please try again.');
+  }
 
   const { latitude, longitude } = loc;
   ctx.session.coords = { latitude, longitude };
 
-  // reverse geocode
   const address = await reverseGeocode(latitude, longitude);
   ctx.session.address = address;
   ctx.session.step = 'confirm';
@@ -245,16 +233,11 @@ bot.on('location', async (ctx) => {
 🗺️ Coordinates: ${latitude}, ${longitude}
   `.trim();
 
-  // show inline Confirm/Cancel
-  await ctx.reply(
-    summary,
-    confirmInlineKeyboard()
-  );
-
-  // remove reply keyboard now
-  await ctx.reply('Please confirm your order above 👆', Markup.removeKeyboard());
+  await ctx.reply(summary, confirmInlineKeyboard());
+  await ctx.reply('Please confirm above 👆', Markup.removeKeyboard());
 });
 
+// helpers
 async function reverseGeocode(lat, lon) {
   try {
     const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}&zoom=18&addressdetails=1`;
@@ -272,14 +255,17 @@ async function reverseGeocode(lat, lon) {
 
 async function sendOrderToAdmin(ctx) {
   if (!ADMIN_CHAT_ID || Number.isNaN(ADMIN_CHAT_ID)) {
-    console.error('ADMIN_CHAT_ID is not configured.');
+    console.error('ADMIN_CHAT_ID not configured, cannot send to admin.');
     return;
   }
+
   const s = ctx.session || {};
   const user = ctx.from || {};
   const timestamp = new Date().toLocaleString('en-US', { timeZone: 'Asia/Manila' });
 
-  const coordsText = s.coords ? `${s.coords.latitude}, ${s.coords.longitude}` : 'N/A';
+  const coordsText = s.coords
+    ? `${s.coords.latitude}, ${s.coords.longitude}`
+    : 'N/A';
 
   const msg = `
 🧊 NEW ORDER
@@ -308,13 +294,3 @@ async function sendOrderToAdmin(ctx) {
     );
   }
 }
-
-bot.launch()
-  .then(() => console.log('🧊 Inline-first IceOrderBot is running...'))
-  .catch((err) => {
-    console.error('Bot failed to start:', err);
-    process.exit(1);
-  });
-
-process.once('SIGINT', () => bot.stop('SIGINT'));
-process.once('SIGTERM', () => bot.stop('SIGTERM'));

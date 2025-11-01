@@ -1,8 +1,8 @@
 // index.js
 import express from 'express';
-import { Telegraf, Markup, session } from 'telegraf';
 import fetchPkg from 'node-fetch';
 
+// use global fetch if Node provides it (Node 18+), else node-fetch
 const fetchFn = (typeof fetch !== 'undefined') ? fetch : fetchPkg;
 
 const BOT_TOKEN = process.env.BOT_TOKEN;
@@ -14,215 +14,112 @@ if (!BOT_TOKEN) {
   throw new Error('BOT_TOKEN is required');
 }
 
-const bot = new Telegraf(BOT_TOKEN);
-bot.use(session());
+const TELEGRAM_API = `https://api.telegram.org/bot${BOT_TOKEN}`;
 
-// --- Inline UI options ---
+// ---------------------------------------------------------------------
+// STATE (in-memory)
+// ---------------------------------------------------------------------
+
+// customer sessions: chatId -> { step, amount, name, phone, address, coords, ... }
+const sessions = new Map();
+
+// admin message map: adminMessageId -> { customerChatId, orderId }
+const adminMessageMap = new Map();
+
+// simple auto-increment for order ids (for display)
+let orderCounter = 1;
+
+// ---------------------------------------------------------------------
+// HELPER FUNCTIONS
+// ---------------------------------------------------------------------
+
+function getSession(chatId) {
+  if (!sessions.has(chatId)) {
+    sessions.set(chatId, {});
+  }
+  return sessions.get(chatId);
+}
+
+async function tgSendMessage(chatId, text, extra = {}) {
+  return fetchFn(`${TELEGRAM_API}/sendMessage`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      chat_id: chatId,
+      text,
+      ...extra
+    })
+  });
+}
+
+async function tgEditMessageText(chatId, messageId, text, extra = {}) {
+  return fetchFn(`${TELEGRAM_API}/editMessageText`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      chat_id: chatId,
+      message_id: messageId,
+      text,
+      ...extra
+    })
+  });
+}
+
+async function tgSendLocation(chatId, latitude, longitude) {
+  return fetchFn(`${TELEGRAM_API}/sendLocation`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      chat_id: chatId,
+      latitude,
+      longitude
+    })
+  });
+}
+
+// inline keyboards
 const AMOUNTS = ['₱500', '₱700', '₱1,000', 'Half G', '1G'];
 
 function amountInlineKeyboard() {
-  return Markup.inlineKeyboard(
-    AMOUNTS.map(a => [Markup.button.callback(a, `amt:${a}`)])
-  );
+  return {
+    inline_keyboard: AMOUNTS.map(a => [{ text: a, callback_data: `amt:${a}` }])
+  };
 }
+
 function nameInlineKeyboard() {
-  return Markup.inlineKeyboard([
-    [Markup.button.callback('👤 Use my Telegram name', 'name:auto')],
-    [Markup.button.callback('⌨️ I will type my name', 'name:manual')]
-  ]);
-}
-function confirmInlineKeyboard() {
-  return Markup.inlineKeyboard([
-    [
-      Markup.button.callback('✅ Confirm', 'order:confirm'),
-      Markup.button.callback('❌ Cancel', 'order:cancel')
+  return {
+    inline_keyboard: [
+      [{ text: '👤 Use my Telegram name', callback_data: 'name:auto' }],
+      [{ text: '⌨️ I will type my name', callback_data: 'name:manual' }]
     ]
-  ]);
+  };
 }
+
+function confirmInlineKeyboard() {
+  return {
+    inline_keyboard: [
+      [
+        { text: '✅ Confirm', callback_data: 'order:confirm' },
+        { text: '❌ Cancel', callback_data: 'order:cancel' }
+      ]
+    ]
+  };
+}
+
 function restartInlineKeyboard() {
-  return Markup.inlineKeyboard([
-    [Markup.button.callback('🔁 Start new order', 'order:restart')]
-  ]);
+  return {
+    inline_keyboard: [
+      [{ text: '🔁 Start new order', callback_data: 'order:restart' }]
+    ]
+  };
 }
 
-// --- Start ---
-bot.start(async (ctx) => {
-  if (ctx.chat && ctx.chat.type !== 'private') {
-    return ctx.reply('Please DM me to order 🙂');
-  }
-  ctx.session = { step: 'choose_amount' };
-  return ctx.reply(
-    '🧊 Welcome to IceOrderBot!\n\nPlease select an amount:',
-    amountInlineKeyboard()
-  );
-});
-
-// --- Inline button logic ---
-bot.on('callback_query', async (ctx) => {
-  try {
-    ctx.session = ctx.session || {};
-    const data = ctx.callbackQuery.data || '';
-
-    // 1️⃣ Amount selected
-    if (data.startsWith('amt:')) {
-      const amount = data.slice(4);
-      ctx.session.amount = amount;
-      ctx.session.step = 'ask_name';
-      await ctx.editMessageText(
-        `Amount selected: ${amount}\n\nHow should I get your name?`,
-        nameInlineKeyboard()
-      );
-      return ctx.answerCbQuery();
-    }
-
-    // 2️⃣ Name: use Telegram name
-    if (data === 'name:auto') {
-      const from = ctx.from || {};
-      const fullName =
-        [from.first_name, from.last_name].filter(Boolean).join(' ').trim() ||
-        from.username ||
-        'Customer';
-      ctx.session.name = fullName;
-      ctx.session.step = 'request_phone';
-      await ctx.editMessageText(
-        `Name: ${fullName}\n\nNow please share your phone number:`
-      );
-      await ctx.reply(
-        'Tap the button to share your phone:',
-        Markup.keyboard([Markup.button.contactRequest('📱 Share Phone Number')])
-          .oneTime()
-          .resize()
-      );
-      return ctx.answerCbQuery('Name set ✅');
-    }
-
-    // 3️⃣ Name: type manually
-    if (data === 'name:manual') {
-      ctx.session.step = 'wait_name_text';
-      await ctx.editMessageText('Okay, please type your name 👇');
-      return ctx.answerCbQuery('Type your name');
-    }
-
-    // 4️⃣ Confirm order
-    if (data === 'order:confirm') {
-      await sendOrderToAdmin(ctx);
-      ctx.session = {};
-      await ctx.editMessageText(
-        '✅ Thank you! Your order was sent to the admin.',
-        restartInlineKeyboard()
-      );
-      return ctx.answerCbQuery('Order sent ✅');
-    }
-
-    // 5️⃣ Cancel order
-    if (data === 'order:cancel') {
-      ctx.session = {};
-      await ctx.editMessageText(
-        '❌ Order canceled. You can start again anytime.',
-        restartInlineKeyboard()
-      );
-      return ctx.answerCbQuery('Canceled');
-    }
-
-    // 6️⃣ Restart order
-    if (data === 'order:restart') {
-      ctx.session = { step: 'choose_amount' };
-      await ctx.editMessageText(
-        '🧊 New order — please select an amount:',
-        amountInlineKeyboard()
-      );
-      return ctx.answerCbQuery();
-    }
-  } catch (err) {
-    console.error('callback_query error:', err);
-    try { await ctx.answerCbQuery('Error, try again'); } catch {}
-  }
-});
-
-// --- Text messages (for manual name input) ---
-bot.on('text', async (ctx) => {
-  ctx.session = ctx.session || {};
-  const step = ctx.session.step;
-  const text = ctx.message.text;
-
-  if (step === 'wait_name_text') {
-    ctx.session.name = text.trim();
-    ctx.session.step = 'request_phone';
-    await ctx.reply(`Thanks, ${ctx.session.name}! Now please share your phone:`);
-    await ctx.reply(
-      'Tap the button to share your phone:',
-      Markup.keyboard([Markup.button.contactRequest('📱 Share Phone Number')])
-        .oneTime()
-        .resize()
-    );
-    return;
-  }
-
-  if (step === 'confirm') {
-    return ctx.reply('Please tap ✅ or ❌ above.');
-  }
-
-  if (!step || step === 'choose_amount') {
-    return ctx.reply('Please pick an amount:', amountInlineKeyboard());
-  }
-
-  return ctx.reply('Please follow the steps or /start to begin again.');
-});
-
-// --- Contact (reply keyboard) ---
-bot.on('contact', async (ctx) => {
-  ctx.session = ctx.session || {};
-  if (ctx.session.step !== 'request_phone') return;
-
-  const contact = ctx.message.contact;
-  if (!contact || !contact.phone_number) {
-    return ctx.reply('No phone number received. Please try again.');
-  }
-
-  ctx.session.phone = contact.phone_number;
-  ctx.session.step = 'request_location';
-
-  await ctx.reply(
-    'Great 👍 Now share your delivery location:',
-    Markup.keyboard([Markup.button.locationRequest('📍 Share Location')])
-      .oneTime()
-      .resize()
-  );
-});
-
-// --- Location (reply keyboard) ---
-bot.on('location', async (ctx) => {
-  ctx.session = ctx.session || {};
-  if (ctx.session.step !== 'request_location') return;
-
-  const loc = ctx.message.location;
-  if (!loc) return ctx.reply('Location not received. Please try again.');
-
-  const { latitude, longitude } = loc;
-  ctx.session.coords = { latitude, longitude };
-
-  const address = await reverseGeocode(latitude, longitude);
-  ctx.session.address = address;
-  ctx.session.step = 'confirm';
-
-  const summary = `
-📋 Order Summary:
-
-💰 Amount: ${ctx.session.amount || 'N/A'}
-👤 Name: ${ctx.session.name || 'N/A'}
-📱 Phone: ${ctx.session.phone || 'N/A'}
-📍 Address: ${address}
-🗺️ Coordinates: ${latitude}, ${longitude}
-  `.trim();
-
-  await ctx.reply(summary, confirmInlineKeyboard());
-  await ctx.reply('Please confirm above 👆', Markup.removeKeyboard());
-});
-
-// --- Reverse geocode helper ---
+// reverse geocode
 async function reverseGeocode(lat, lon) {
   try {
-    const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}&zoom=18&addressdetails=1`;
+    const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${encodeURIComponent(
+      lat
+    )}&lon=${encodeURIComponent(lon)}&zoom=18&addressdetails=1`;
     const res = await fetchFn(url, {
       headers: { 'User-Agent': 'IceOrderBot/1.0 (mailto:you@example.com)' }
     });
@@ -235,59 +132,335 @@ async function reverseGeocode(lat, lon) {
   }
 }
 
-// --- Send order to admin ---
-async function sendOrderToAdmin(ctx) {
+// send order to admin + store admin message -> customer
+async function sendOrderToAdmin(session, from) {
   if (!ADMIN_CHAT_ID || Number.isNaN(ADMIN_CHAT_ID)) {
-    console.error('ADMIN_CHAT_ID not configured.');
+    console.error('ADMIN_CHAT_ID not configured, skipping admin send.');
     return;
   }
 
-  const s = ctx.session || {};
-  const user = ctx.from || {};
   const timestamp = new Date().toLocaleString('en-US', {
     timeZone: 'Asia/Manila'
   });
 
-  const coordsText = s.coords
-    ? `${s.coords.latitude}, ${s.coords.longitude}`
+  const coordsText = session.coords
+    ? `${session.coords.latitude}, ${session.coords.longitude}`
     : 'N/A';
 
-  const msg = `
-🧊 NEW ORDER
+  // create an order id
+  const orderId = orderCounter++;
 
-💰 Amount: ${s.amount || 'N/A'}
-👤 Name: ${s.name || 'N/A'}
-📱 Phone: ${s.phone || 'N/A'}
-📍 Address: ${s.address || 'N/A'}
+  const adminText = `
+🧊 NEW ORDER (#${orderId})
+
+💰 Amount: ${session.amount || 'N/A'}
+👤 Name: ${session.name || 'N/A'}
+📱 Phone: ${session.phone || 'N/A'}
+📍 Address: ${session.address || 'N/A'}
 🗺️ Coords: ${coordsText}
 
-👤 Telegram:
-- ID: ${user.id || 'N/A'}
-- Username: ${user.username ? '@' + user.username : 'N/A'}
-- Name: ${[user.first_name, user.last_name].filter(Boolean).join(' ')}
-
+💡 To send tracking, just REPLY to this message with the link.
 ⏰ ${timestamp}
   `.trim();
 
-  await ctx.telegram.sendMessage(ADMIN_CHAT_ID, msg);
+  // send to admin
+  const resp = await tgSendMessage(ADMIN_CHAT_ID, adminText);
+  const data = await resp.json().catch(() => null);
 
-  if (s.coords) {
-    await ctx.telegram.sendLocation(
+  // if sent OK, remember which admin message is tied to which customer
+  if (data && data.ok) {
+    const adminMessageId = data.result.message_id;
+    adminMessageMap.set(adminMessageId, {
+      customerChatId: from.id,
+      orderId
+    });
+  }
+
+  // optional: also send location to admin if available
+  if (session.coords) {
+    await tgSendLocation(
       ADMIN_CHAT_ID,
-      s.coords.latitude,
-      s.coords.longitude
+      session.coords.latitude,
+      session.coords.longitude
     );
   }
 }
 
-// --- EXPRESS + WEBHOOK ---
+// ---------------------------------------------------------------------
+// UPDATE HANDLERS
+// ---------------------------------------------------------------------
+
+// regular text / commands
+async function handleMessage(message) {
+  const chatId = message.chat.id;
+  const from = message.from;
+  const text = message.text || '';
+  const session = getSession(chatId);
+
+  // 1) ADMIN replying to a specific order (swipe-to-reply)
+  if (chatId === ADMIN_CHAT_ID && message.reply_to_message) {
+    const repliedMsgId = message.reply_to_message.message_id;
+    const info = adminMessageMap.get(repliedMsgId);
+
+    if (!info) {
+      await tgSendMessage(chatId, 'I don’t know which customer this is for.');
+      return;
+    }
+
+    // forward admin reply to customer
+    await tgSendMessage(
+      info.customerChatId,
+      `🚚 Update for your order #${info.orderId}:\n${text}`
+    );
+
+    await tgSendMessage(
+      chatId,
+      `✅ Sent update to customer of order #${info.orderId}`
+    );
+    return;
+  }
+
+  // 2) customer start
+  if (text === '/start') {
+    sessions.set(chatId, { step: 'choose_amount' });
+    await tgSendMessage(
+      chatId,
+      '🧊 Welcome to IceOrderBot!\n\nPlease select an amount:',
+      { reply_markup: amountInlineKeyboard() }
+    );
+    return;
+  }
+
+  // 3) customer is typing name manually
+  if (session.step === 'wait_name_text') {
+    session.name = text.trim();
+    session.step = 'request_phone';
+
+    await tgSendMessage(chatId, `Thanks, ${session.name}! Now please share your phone:`);
+    await tgSendMessage(chatId, 'Tap the button to share your phone:', {
+      reply_markup: {
+        keyboard: [
+          [{ text: '📱 Share Phone Number', request_contact: true }]
+        ],
+        resize_keyboard: true,
+        one_time_keyboard: true
+      }
+    });
+    return;
+  }
+
+  // 4) customer typed while waiting for confirm
+  if (session.step === 'confirm') {
+    await tgSendMessage(chatId, 'Please tap ✅ Confirm or ❌ Cancel above.');
+    return;
+  }
+
+  // 5) fallback
+  await tgSendMessage(chatId, 'Please /start to begin an order.', {
+    reply_markup: amountInlineKeyboard()
+  });
+}
+
+// customer shared contact
+async function handleContact(message) {
+  const chatId = message.chat.id;
+  const session = getSession(chatId);
+  if (session.step !== 'request_phone') return;
+
+  const phone = message.contact?.phone_number;
+  if (!phone) {
+    await tgSendMessage(chatId, 'No phone number received. Please try again.');
+    return;
+  }
+
+  session.phone = phone;
+  session.step = 'request_location';
+
+  await tgSendMessage(chatId, 'Great 👍 Now share your delivery location:', {
+    reply_markup: {
+      keyboard: [
+        [{ text: '📍 Share Location', request_location: true }]
+      ],
+      resize_keyboard: true,
+      one_time_keyboard: true
+    }
+  });
+}
+
+// customer shared location
+async function handleLocation(message) {
+  const chatId = message.chat.id;
+  const session = getSession(chatId);
+  if (session.step !== 'request_location') return;
+
+  const loc = message.location;
+  if (!loc) {
+    await tgSendMessage(chatId, 'Location not received, please try again.');
+    return;
+  }
+
+  const { latitude, longitude } = loc;
+  session.coords = { latitude, longitude };
+
+  const address = await reverseGeocode(latitude, longitude);
+  session.address = address;
+  session.step = 'confirm';
+
+  const summary = `
+📋 Order Summary:
+
+💰 Amount: ${session.amount || 'N/A'}
+👤 Name: ${session.name || 'N/A'}
+📱 Phone: ${session.phone || 'N/A'}
+📍 Address: ${address}
+🗺️ Coordinates: ${latitude}, ${longitude}
+  `.trim();
+
+  await tgSendMessage(chatId, summary, {
+    reply_markup: confirmInlineKeyboard()
+  });
+
+  // remove reply keyboard
+  await tgSendMessage(chatId, 'Please confirm above 👆', {
+    reply_markup: { remove_keyboard: true }
+  });
+}
+
+// inline button clicks
+async function handleCallbackQuery(cbq) {
+  const data = cbq.data;
+  const message = cbq.message;
+  const from = cbq.from;
+  const chatId = message.chat.id;
+  const messageId = message.message_id;
+
+  const session = getSession(chatId);
+
+  // amount
+  if (data.startsWith('amt:')) {
+    const amount = data.slice(4);
+    session.amount = amount;
+    session.step = 'ask_name';
+
+    await tgEditMessageText(
+      chatId,
+      messageId,
+      `Amount selected: ${amount}\n\nHow should I get your name?`,
+      { reply_markup: nameInlineKeyboard() }
+    );
+    return;
+  }
+
+  // name: auto
+  if (data === 'name:auto') {
+    const fullName =
+      [from.first_name, from.last_name].filter(Boolean).join(' ').trim() ||
+      from.username ||
+      'Customer';
+
+    session.name = fullName;
+    session.step = 'request_phone';
+
+    await tgEditMessageText(
+      chatId,
+      messageId,
+      `Name: ${fullName}\n\nNow please share your phone number:`
+    );
+
+    await tgSendMessage(chatId, 'Tap the button to share your phone:', {
+      reply_markup: {
+        keyboard: [
+          [{ text: '📱 Share Phone Number', request_contact: true }]
+        ],
+        resize_keyboard: true,
+        one_time_keyboard: true
+      }
+    });
+    return;
+  }
+
+  // name: manual
+  if (data === 'name:manual') {
+    session.step = 'wait_name_text';
+    await tgEditMessageText(chatId, messageId, 'Okay, please type your name 👇');
+    return;
+  }
+
+  // confirm order
+  if (data === 'order:confirm') {
+    await sendOrderToAdmin(session, from);
+    // clear session for this customer
+    sessions.set(chatId, {});
+    await tgEditMessageText(
+      chatId,
+      messageId,
+      '✅ Thank you! Your order was sent to the admin.',
+      { reply_markup: restartInlineKeyboard() }
+    );
+    return;
+  }
+
+  // cancel
+  if (data === 'order:cancel') {
+    sessions.set(chatId, {});
+    await tgEditMessageText(
+      chatId,
+      messageId,
+      '❌ Order canceled. You can start again anytime.',
+      { reply_markup: restartInlineKeyboard() }
+    );
+    return;
+  }
+
+  // restart
+  if (data === 'order:restart') {
+    sessions.set(chatId, { step: 'choose_amount' });
+    await tgEditMessageText(
+      chatId,
+      messageId,
+      '🧊 New order — please select an amount:',
+      { reply_markup: amountInlineKeyboard() }
+    );
+    return;
+  }
+}
+
+// ---------------------------------------------------------------------
+// EXPRESS + WEBHOOK
+// ---------------------------------------------------------------------
+
 const app = express();
+app.use(express.json());
+
+// Telegram will POST updates here
 const secretPath = `/telegraf/${BOT_TOKEN}`;
 
-app.use(bot.webhookCallback(secretPath));
+app.post(secretPath, async (req, res) => {
+  const update = req.body;
+
+  try {
+    if (update.message) {
+      const msg = update.message;
+      if (msg.contact) {
+        await handleContact(msg);
+      } else if (msg.location) {
+        await handleLocation(msg);
+      } else {
+        await handleMessage(msg);
+      }
+    } else if (update.callback_query) {
+      await handleCallbackQuery(update.callback_query);
+    }
+  } catch (err) {
+    console.error('Error handling update:', err);
+  }
+
+  // always answer Telegram fast
+  res.sendStatus(200);
+});
 
 app.get('/', (req, res) => {
-  res.send('IceOrderBot is running (webhook mode)');
+  res.send('IceOrderBot (no Telegraf) is running ✅');
 });
 
 app.listen(PORT, async () => {
@@ -296,8 +469,13 @@ app.listen(PORT, async () => {
   if (HOST_URL) {
     const webhookUrl = `${HOST_URL}${secretPath}`;
     try {
-      await bot.telegram.setWebhook(webhookUrl);
-      console.log('✅ Webhook set to:', webhookUrl);
+      const resp = await fetchFn(`${TELEGRAM_API}/setWebhook`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: webhookUrl })
+      });
+      const data = await resp.json();
+      console.log('✅ setWebhook response:', data);
     } catch (err) {
       console.error('❌ Failed to set webhook:', err);
     }

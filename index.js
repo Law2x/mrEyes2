@@ -1,6 +1,5 @@
     console.error('callback_query error:', err);
     try { await ctx.answerCbQuery('Error, try again'); } catch {}
-  }
 });
 
 // text (for manual name etc.)

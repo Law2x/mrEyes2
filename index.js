@@ -156,9 +156,9 @@ function buildAmountKeyboardFixed(session) {
         ],
         [
           { text: "₱1,000", callback_data: "amt:₱1,000" },
-          { text: "Half G", callback_data: "amt:Half G" },
+          { text: "Half G", callback_data: "amt:2,000" },
         ],
-        [{ text: "1G", callback_data: "amt:1G" }],
+        [{ text: "1G", callback_data: "amt:3,800" }],
         ...baseActions,
       ],
     };

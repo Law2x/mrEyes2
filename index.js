@@ -39,9 +39,11 @@ function getSession(chatId) {
   if (!sessions.has(chatId)) sessions.set(chatId, {});
   return sessions.get(chatId);
 }
+
 function ensureCart(session) {
   if (!session.cart) session.cart = [];
 }
+
 async function tgSendMessage(chatId, text, extra = {}) {
   return fetchFn(`${TELEGRAM_API}/sendMessage`, {
     method: "POST",
@@ -49,6 +51,7 @@ async function tgSendMessage(chatId, text, extra = {}) {
     body: JSON.stringify({ chat_id: chatId, text, ...extra }),
   });
 }
+
 async function tgEditMessageText(chatId, messageId, text, extra = {}) {
   return fetchFn(`${TELEGRAM_API}/editMessageText`, {
     method: "POST",
@@ -56,6 +59,7 @@ async function tgEditMessageText(chatId, messageId, text, extra = {}) {
     body: JSON.stringify({ chat_id: chatId, message_id: messageId, text, ...extra }),
   });
 }
+
 async function tgSendLocation(chatId, lat, lon) {
   return fetchFn(`${TELEGRAM_API}/sendLocation`, {
     method: "POST",
@@ -196,7 +200,7 @@ async function handleMessage(msg) {
     return;
   }
 
-  // admin reply-to
+  // admin reply
   if (chatId === ADMIN_CHAT_ID && msg.reply_to_message) {
     const info = adminMessageMap.get(msg.reply_to_message.message_id);
     if (!info) return tgSendMessage(chatId, "⚠️ Cannot map reply.");
@@ -359,7 +363,9 @@ async function handleCallbackQuery(cbq) {
         .slice(0, 10)
         .map(
           (o) =>
-            `#${o.id} ${o.name} — ${o.items.map((i) => i.amount).join(", ")} (${o.createdAt})`
+            `#${o.id} ${o.name} — ${o.items
+              .map((i) => i.amount)
+              .join(", ")} (${o.createdAt})`
         )
         .join("\n");
       return tgSendMessage(chatId, `🧾 Recent Orders:\n${list}`);
@@ -434,3 +440,48 @@ async function handleCallbackQuery(cbq) {
   if (data === "cart:checkout") {
     ensureCart(s);
     if (!s.cart.length && s.category && s.selectedAmount)
+      s.cart.push({ category: s.category, amount: s.selectedAmount });
+    if (!s.cart.length) return tgSendMessage(chatId, "🧺 Cart is empty.");
+    s.step = "ask_name";
+    return tgSendMessage(chatId, "📝 Enter your name:");
+  }
+
+  if (data === "order:confirm") {
+    s.step = "await_payment_proof";
+    return tgSendMessage(chatId, "📸 Please upload your GCash payment screenshot.");
+  }
+
+  if (data === "order:cancel") {
+    sessions.set(chatId, {});
+    return tgEditMessageText(chatId, msgId, "❌ Order canceled.");
+  }
+}
+
+// ───────── EXPRESS SERVER ─────────
+const app = express();
+app.use(express.json());
+
+const path = `/telegraf/${BOT_TOKEN}`;
+
+app.post(path, async (req, res) => {
+  const update = req.body;
+  try {
+    if (update.message) {
+      const msg = update.message;
+      if (msg.contact) await handleContact(msg);
+      else if (msg.location) await handleLocation(msg);
+      else if (msg.photo || msg.document) await handlePhotoOrDocument(msg);
+      else await handleMessage(msg);
+    } else if (update.callback_query) {
+      await handleCallbackQuery(update.callback_query);
+    }
+  } catch (err) {
+    console.error("❌ Error handling update:", err);
+  }
+  res.sendStatus(200);
+});
+
+// Health / Ping routes
+app.get("/", (req, res) => res.send("🧊 IceOrderBot is running (webhook mode)."));
+app.get("/ping", (req, res) => res.send("pong"));
+app.get("/

@@ -1,5 +1,5 @@
 {
-  "name": "ice-order-bot",
+  "name": "mrs-eyes-bot",
   "version": "1.0.0",
   "private": true,
   "type": "module",
@@ -8,6 +8,7 @@
   },
   "dependencies": {
     "@napi-rs/canvas": "^0.1.66",
+    "better-sqlite3": "^9.6.0",
     "bwip-js": "^4.3.2",
     "express": "^4.19.2",
     "node-fetch": "^3.3.2"

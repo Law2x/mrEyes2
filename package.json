@@ -7,7 +7,12 @@
     "start": "node index.js"
   },
   "dependencies": {
+    "@napi-rs/canvas": "^0.1.66",
+    "bwip-js": "^4.3.2",
     "express": "^4.19.2",
     "node-fetch": "^3.3.2"
+  },
+  "engines": {
+    "node": ">=18.17"
   }
 }

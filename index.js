@@ -27,7 +27,7 @@ let SHOP_OPEN = true;
 // ───────── EXPRESS ─────────
 const app = express();
 app.use(express.json());
-app.use("/static", express.static("public")); // serve qrph.jpg if you use it
+app.use("/static", express.static("public")); // serve qrph.jpg etc.
 
 // ───────── BASIC TG HELPERS ─────────
 async function tgSendMessage(chatId, text, extra = {}) {
@@ -216,7 +216,7 @@ async function refreshAllAdminPanels() {
 
 // ───────── COMMAND DISPATCH ─────────
 const PUBLIC_COMMANDS = ["start","restart","help","faq","menu","contact","checkout","status"];
-const ADMIN_ONLY_COMMANDS = ["admin"]; // other admin actions are only in Admin Center
+const ADMIN_ONLY_COMMANDS = ["admin"]; // other admin actions only inside Admin Center
 
 function sendCommandMenu(chatId, isAdmin = false) {
   const userCmds = PUBLIC_COMMANDS.map(c => "/" + c).join(", ");
@@ -234,6 +234,12 @@ async function handleCommand(msg) {
   const cmd = rawCmd.slice(1).toLowerCase();
   const isAdmin = ADMIN_IDS.includes(chatId);
   const known = new Set([...PUBLIC_COMMANDS, ...ADMIN_ONLY_COMMANDS]);
+
+  // BLOCK non-admins while CLOSED, except for help/menu/status
+  if (!isAdmin && !SHOP_OPEN && !["help", "menu", "status"].includes(cmd)) {
+    await tgSendMessage(chatId, "🏪 The shop is currently CLOSED. Please check back later!");
+    return true;
+  }
 
   if (!known.has(cmd)) {
     await tgSendMessage(chatId, `❓ Unknown command: /${cmd}`);
@@ -295,6 +301,7 @@ async function handleMessage(msg) {
   const routed = await handleCommand(msg);
   if (routed) return;
 
+  // BLOCK plain texts if shop is closed
   if (!SHOP_OPEN && !ADMIN_IDS.includes(chatId))
     return tgSendMessage(chatId, "🏪 The shop is currently closed. Please check back later!");
 
@@ -357,6 +364,13 @@ async function handleMessage(msg) {
 
 async function handleContact(msg) {
   const chatId = msg.chat.id;
+
+  // BLOCK contact step while closed (remove this if you want mid-flows to continue)
+  if (!SHOP_OPEN && !ADMIN_IDS.includes(chatId)) {
+    await tgSendMessage(chatId, "🏪 The shop is currently CLOSED. Please check back later!");
+    return;
+  }
+
   const s = getSession(chatId);
   if (s.step !== "request_phone") return;
   s.phone = msg.contact.phone_number;
@@ -371,6 +385,13 @@ async function handleContact(msg) {
 
 async function handleLocation(msg) {
   const chatId = msg.chat.id;
+
+  // BLOCK location step while closed (remove this if you want mid-flows to continue)
+  if (!SHOP_OPEN && !ADMIN_IDS.includes(chatId)) {
+    await tgSendMessage(chatId, "🏪 The shop is currently CLOSED. Please check back later!");
+    return;
+  }
+
   const s = getSession(chatId);
   if (s.step !== "request_location") return;
   const { latitude, longitude } = msg.location;
@@ -410,6 +431,13 @@ After payment, tap *Payment Processed* and upload your proof.
 
 async function handlePhotoOrDocument(msg) {
   const chatId = msg.chat.id;
+
+  // BLOCK photo/doc step while closed (remove this if you want mid-flows to continue)
+  if (!SHOP_OPEN && !ADMIN_IDS.includes(chatId)) {
+    await tgSendMessage(chatId, "🏪 The shop is currently CLOSED. Please check back later!");
+    return;
+  }
+
   const s = getSession(chatId);
   if (s.step !== "await_payment_proof") return;
   const file = msg.photo ? msg.photo.pop().file_id : msg.document?.file_id;
@@ -431,6 +459,7 @@ async function handleCallbackQuery(cbq) {
   const msgId = cbq.message.message_id;
   const s = getSession(chatId);
 
+  // BLOCK buttons while closed (admins bypass)
   if (!SHOP_OPEN && !ADMIN_IDS.includes(chatId))
     return tgSendMessage(chatId, "🏪 Shop closed. Please check back later!");
 
@@ -593,7 +622,7 @@ app.get("/health", (_, r) =>
 app.listen(PORT, async () => {
   console.log(`🚀 Server running on port ${PORT}`);
 
-  // Clean public command menu (admin actions only via Admin Center)
+  // Public command menu (+ /admin entry)
   try {
     await fetchFn(`${TELEGRAM_API}/setMyCommands`, {
       method: "POST",

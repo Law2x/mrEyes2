@@ -1,4 +1,3 @@
-// index.js
 import express from "express";
 import fetchPkg from "node-fetch";
 
@@ -7,17 +6,14 @@ const fetchFn = typeof fetch !== "undefined" ? fetch : fetchPkg;
 // ───────── CONFIG ─────────
 const BOT_TOKEN = process.env.BOT_TOKEN;
 const ADMIN_CHAT_ID = Number(process.env.ADMIN_CHAT_ID || 0);
-const HOST_URL = process.env.HOST_URL; // e.g. https://your-app.onrender.com
+const HOST_URL = process.env.HOST_URL;
 const PORT = process.env.PORT || 3000;
 
 const ADMIN_IDS = process.env.ADMIN_IDS
   ? process.env.ADMIN_IDS.split(",").map((id) => Number(id.trim()))
   : [];
 
-if (!BOT_TOKEN) {
-  throw new Error("BOT_TOKEN is required");
-}
-
+if (!BOT_TOKEN) throw new Error("BOT_TOKEN missing.");
 const TELEGRAM_API = `https://api.telegram.org/bot${BOT_TOKEN}`;
 
 const BOT_COMMANDS = [
@@ -26,80 +22,68 @@ const BOT_COMMANDS = [
   { command: "help", description: "Help" },
   { command: "faq", description: "FAQ" },
   { command: "admin", description: "Admin control" },
+  { command: "contact", description: "Connect to admin" }
 ];
 
 // ───────── MEMORY STATE ─────────
-const sessions = new Map();          // chatId -> session
-const adminMessageMap = new Map();   // adminMsgId -> { customerChatId, orderId }
-const loggedInAdmins = new Set();    // chatIds currently logged in as admin
-const orders = [];                   // memory-only order list
+const sessions = new Map();
+const adminMessageMap = new Map(); // admin message_id -> { customerChatId, orderId? }
+const loggedInAdmins = new Set();
+const orders = [];
 let orderCounter = 1;
-let SHOP_OPEN = true;                // admin can toggle
+let SHOP_OPEN = true;
 
 // ───────── EXPRESS APP ─────────
 const app = express();
 app.use(express.json());
-
-// serve /public as /static - THIS is where qrph.jpg lives
-app.use("/static", express.static("public"));
+app.use("/static", express.static("public")); // QR at /static/qrph.jpg
 
 // ───────── HELPERS ─────────
 function getSession(chatId) {
   if (!sessions.has(chatId)) sessions.set(chatId, {});
   return sessions.get(chatId);
 }
-
-function ensureCart(session) {
-  if (!session.cart) session.cart = [];
+function ensureCart(s) {
+  if (!s.cart) s.cart = [];
 }
 
 async function tgSendMessage(chatId, text, extra = {}) {
   return fetchFn(`${TELEGRAM_API}/sendMessage`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      chat_id: chatId,
-      text,
-      ...extra,
-    }),
+    body: JSON.stringify({ chat_id: chatId, text, ...extra }),
   });
 }
-
-async function tgEditMessageText(chatId, messageId, text, extra = {}) {
+async function tgEditMessageText(chatId, msgId, text, extra = {}) {
   return fetchFn(`${TELEGRAM_API}/editMessageText`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      chat_id: chatId,
-      message_id: messageId,
-      text,
-      ...extra,
-    }),
+    body: JSON.stringify({ chat_id: chatId, message_id: msgId, text, ...extra }),
   });
 }
-
 async function tgSendLocation(chatId, lat, lon) {
   return fetchFn(`${TELEGRAM_API}/sendLocation`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      chat_id: chatId,
-      latitude: lat,
-      longitude: lon,
-    }),
+    body: JSON.stringify({ chat_id: chatId, latitude: lat, longitude: lon }),
   });
+}
+
+// Build keyboards with persistent "Connect to Admin"
+function addSupportRow(kb) {
+  const supportRow = [{ text: "🧑‍💼 Connect to Admin", callback_data: "support:connect" }];
+  return { inline_keyboard: [...kb.inline_keyboard, supportRow] };
 }
 
 function buildAmountKeyboard(session) {
   const cat = session.category;
-  const baseActions = [
+  const base = [
     [{ text: "🛒 Add to cart", callback_data: "cart:add" }],
     [{ text: "🧾 View cart", callback_data: "cart:view" }],
     [{ text: "✅ Checkout", callback_data: "cart:checkout" }],
   ];
-
   if (cat === "sachet") {
-    return {
+    return addSupportRow({
       inline_keyboard: [
         [
           { text: "₱500", callback_data: "amt:₱500" },
@@ -107,156 +91,101 @@ function buildAmountKeyboard(session) {
         ],
         [
           { text: "₱1,000", callback_data: "amt:₱1,000" },
-          { text: "Half G", callback_data: "amt:2,000" },
+          { text: "Half G", callback_data: "amt:Half G" },
         ],
-        [{ text: "1G", callback_data: "amt:3,800" }],
-        ...baseActions,
+        [{ text: "1G", callback_data: "amt:1G" }],
+        ...base,
       ],
-    };
-  }
-
-  if (cat === "syringe") {
-    return {
-      inline_keyboard: [
-        [
-          { text: "₱500", callback_data: "amt:₱500" },
-          { text: "₱700", callback_data: "amt:₱700" },
-        ],
-        [{ text: "₱1,000", callback_data: "amt:₁,000" }], // note: we’ll fix this to plain text below
-        ...baseActions,
-      ],
-    };
-  }
-
-  // default: choose category
-  return {
-    inline_keyboard: [
-      [
-        { text: "💧 Sachet", callback_data: "cat:sachet" },
-        { text: "💉 Syringe", callback_data: "cat:syringe" },
-      ],
-    ],
-  };
-}
-
-// tiny fix: that above line has a weird ₁,000 – let's correct the function:
-function buildAmountKeyboardFixed(session) {
-  const cat = session.category;
-  const baseActions = [
-    [{ text: "🛒 Add to cart", callback_data: "cart:add" }],
-    [{ text: "🧾 View cart", callback_data: "cart:view" }],
-    [{ text: "✅ Checkout", callback_data: "cart:checkout" }],
-  ];
-  if (cat === "sachet") {
-    return {
-      inline_keyboard: [
-        [
-          { text: "₱500", callback_data: "amt:₱500" },
-          { text: "₱700", callback_data: "amt:₱700" },
-        ],
-        [
-          { text: "₱1,000", callback_data: "amt:₱1,000" },
-          { text: "Half G", callback_data: "amt:2,000" },
-        ],
-        [{ text: "1G", callback_data: "amt:3,800" }],
-        ...baseActions,
-      ],
-    };
+    });
   }
   if (cat === "syringe") {
-    return {
+    return addSupportRow({
       inline_keyboard: [
         [
           { text: "₱500", callback_data: "amt:₱500" },
           { text: "₱700", callback_data: "amt:₱700" },
         ],
         [{ text: "₱1,000", callback_data: "amt:₱1,000" }],
-        ...baseActions,
+        ...base,
       ],
-    };
+    });
   }
-  return {
+  return addSupportRow({
     inline_keyboard: [
       [
         { text: "💧 Sachet", callback_data: "cat:sachet" },
         { text: "💉 Syringe", callback_data: "cat:syringe" },
       ],
     ],
-  };
+  });
 }
 
 async function reverseGeocode(lat, lon) {
   try {
-    const res = await fetchFn(
+    const r = await fetchFn(
       `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=18&addressdetails=1`,
       { headers: { "User-Agent": "IceOrderBot/1.0" } }
     );
-    const data = await res.json();
-    return data.display_name || `${lat}, ${lon}`;
-  } catch (err) {
-    console.error("Geocoding error", err);
+    const j = await r.json();
+    return j.display_name || `${lat}, ${lon}`;
+  } catch {
     return `${lat}, ${lon}`;
   }
 }
 
-async function sendOrderToAdmin(session, from) {
+// ───────── ADMIN NOTIFICATION ─────────
+async function sendOrderToAdmin(s, from) {
   const ts = new Date().toLocaleString("en-US", { timeZone: "Asia/Manila" });
-  const itemsText = session.cart?.length
-    ? session.cart.map((it) => `${it.category} — ${it.amount}`).join("\n")
-    : `${session.category || "N/A"} — ${session.selectedAmount || "N/A"}`;
-  const coordsText = session.coords
-    ? `${session.coords.latitude}, ${session.coords.longitude}`
-    : "N/A";
-
-  const orderId = orderCounter++;
+  const items = s.cart?.length
+    ? s.cart.map((i) => `${i.category} — ${i.amount}`).join("\n")
+    : `${s.category || "N/A"} — ${s.selectedAmount || "N/A"}`;
+  const coords = s.coords ? `${s.coords.latitude}, ${s.coords.longitude}` : "N/A";
+  const id = orderCounter++;
 
   orders.unshift({
-    id: orderId,
+    id,
     customerChatId: from.id,
-    name: session.name,
-    phone: session.phone,
-    address: session.address,
-    coords: session.coords,
-    items: session.cart || [],
+    name: s.name,
+    phone: s.phone,
+    address: s.address,
+    coords: s.coords,
+    items: s.cart || [],
     createdAt: ts,
   });
   if (orders.length > 100) orders.pop();
 
-  const adminText =
-    `🧊 NEW ORDER (#${orderId})\n\n` +
-    `🧺 Items:\n${itemsText}\n\n` +
-    `👤 ${session.name}\n` +
-    `📱 ${session.phone}\n` +
-    `📍 ${session.address}\n` +
-    `🗺️ ${coordsText}\n\n` +
-    `💰 Payment proof: ${session.paymentProof ? "✅ Received" : "❌ None"}\n` +
-    `⏰ ${ts}`;
+  const text = `
+🧊 NEW ORDER (#${id})
 
-  const r = await tgSendMessage(ADMIN_CHAT_ID, adminText);
-  const jr = await r.json().catch(() => null);
-  if (jr?.ok) {
-    adminMessageMap.set(jr.result.message_id, {
-      customerChatId: from.id,
-      orderId,
-    });
-  }
+🧺 Items:
+${items}
 
-  if (session.coords) {
-    await tgSendLocation(
-      ADMIN_CHAT_ID,
-      session.coords.latitude,
-      session.coords.longitude
-    );
-  }
+👤 ${s.name}
+📱 ${s.phone}
+📍 ${s.address}
+🗺️ ${coords}
 
-  if (session.paymentProof) {
+💰 Payment proof: ${s.paymentProof ? "✅ Received" : "❌ None"}
+⏰ ${ts}
+
+🛵 *Note:* Customer was informed that a Grab delivery link will be generated and sent shortly.
+`.trim();
+
+  const r = await tgSendMessage(ADMIN_CHAT_ID, text);
+  const j = await r.json().catch(() => null);
+  if (j?.ok) adminMessageMap.set(j.result.message_id, { customerChatId: from.id });
+
+  if (s.coords)
+    await tgSendLocation(ADMIN_CHAT_ID, s.coords.latitude, s.coords.longitude);
+
+  if (s.paymentProof) {
     await fetchFn(`${TELEGRAM_API}/sendPhoto`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         chat_id: ADMIN_CHAT_ID,
-        photo: session.paymentProof,
-        caption: `💰 GCash screenshot for order #${orderId}`,
+        photo: s.paymentProof,
+        caption: `💰 GCash/QRPh screenshot for order #${id}`,
       }),
     });
   }
@@ -266,131 +195,93 @@ async function sendOrderToAdmin(session, from) {
 async function handleMessage(msg) {
   const chatId = msg.chat.id;
   const text = msg.text || "";
-  const session = getSession(chatId);
+  const s = getSession(chatId);
 
-  // if shop is closed, block non-admin
   if (!SHOP_OPEN && !ADMIN_IDS.includes(chatId)) {
-    await tgSendMessage(
-      chatId,
-      "🏪 The shop is currently closed.\nPlease check back later."
-    );
+    await tgSendMessage(chatId, "🏪 The shop is currently closed.\nPlease check back later!");
     return;
   }
 
-  // admin reply-to message (swipe to reply in Telegram)
+  // admin replies to forwarded messages
   if (chatId === ADMIN_CHAT_ID && msg.reply_to_message) {
     const info = adminMessageMap.get(msg.reply_to_message.message_id);
-    if (!info) {
-      await tgSendMessage(chatId, "⚠️ I can't find the customer for this reply.");
-      return;
-    }
-    await tgSendMessage(
-      info.customerChatId,
-      `🚚 Update for your order #${info.orderId}:\n${text}`
-    );
-    await tgSendMessage(chatId, "✅ Update sent to customer.");
-    return;
+    if (!info) return tgSendMessage(chatId, "⚠️ Cannot map reply.");
+    await tgSendMessage(info.customerChatId, `🧑‍💼 Admin:\n${text}`);
+    return tgSendMessage(chatId, "✅ Sent to customer.");
   }
 
   // commands
   if (text === "/start" || text === "/restart") {
     sessions.set(chatId, { step: "choose_category", cart: [] });
-    await tgSendMessage(chatId, "🧊 IceOrderBot\nChoose product type 👇", {
-      reply_markup: buildAmountKeyboardFixed({}),
+    return tgSendMessage(chatId, "🧊 IceOrderBot\nChoose product type 👇", {
+      reply_markup: buildAmountKeyboard({}),
     });
-    return;
   }
 
-  if (text === "/help") {
-    await tgSendMessage(
-      chatId,
-      "🆘 How to use:\n1) /start\n2) choose product\n3) checkout\n4) pay via QR\n5) upload payment."
-    );
-    return;
-  }
+  if (text === "/help")
+    return tgSendMessage(chatId, "🆘 Use /start to begin your order.\nUse the *Connect to Admin* button anytime.", { parse_mode: "Markdown" });
 
-  if (text === "/faq") {
-    await tgSendMessage(
-      chatId,
-      "❓ FAQ:\n• You can /restart anytime.\n• Admin confirms orders manually.\n• Location is only sent to admin."
-    );
-    return;
-  }
+  if (text === "/faq")
+    return tgSendMessage(chatId, "❓ Pay via QRPh / GCash, then upload screenshot. Admin will confirm.");
 
   if (text === "/admin") {
-    if (!ADMIN_IDS.includes(chatId)) {
-      await tgSendMessage(chatId, "🚫 Access denied.");
-      return;
-    }
+    if (!ADMIN_IDS.includes(chatId)) return tgSendMessage(chatId, "🚫 Access denied.");
     loggedInAdmins.add(chatId);
-    await tgSendMessage(chatId, "🧠 Admin Control Panel", {
+    return tgSendMessage(chatId, "🧠 Admin Control Panel:", {
       reply_markup: {
         inline_keyboard: [
           [{ text: "🧾 View Orders", callback_data: "admin:view_orders" }],
           [{ text: "📢 Broadcast", callback_data: "admin:broadcast" }],
           [{ text: "📊 Analytics", callback_data: "admin:analytics" }],
-          [
-            {
-              text: SHOP_OPEN ? "🔴 Close Shop" : "🟢 Open Shop",
-              callback_data: "admin:toggle_shop",
-            },
-          ],
+          [{ text: SHOP_OPEN ? "🔴 Close Shop" : "🟢 Open Shop", callback_data: "admin:toggle_shop" }],
           [{ text: "🔐 Logout", callback_data: "admin:logout" }],
         ],
       },
     });
-    return;
   }
 
-  // admin broadcast text step
-  if (loggedInAdmins.has(chatId) && session.step === "await_broadcast") {
-    const allUsers = Array.from(sessions.keys()).filter(
-      (id) => id !== ADMIN_CHAT_ID
-    );
-    for (const u of allUsers) {
-      await tgSendMessage(u, `📢 Announcement:\n${text}`);
-    }
-    session.step = null;
-    await tgSendMessage(
-      chatId,
-      `✅ Broadcast sent to ${allUsers.length} users.`
-    );
-    return;
+  if (text === "/contact") {
+    s.prevStep = s.step || null;
+    s.step = "support_wait_message";
+    return tgSendMessage(chatId, "🧑‍💼 Please type your message for the admin:");
   }
 
-  // user typed name
-  if (session.step === "ask_name") {
-    session.name = text.trim();
-    session.step = "request_phone";
-    await tgSendMessage(chatId, "📱 Please share your phone number:", {
+  // support message flow
+  if (s.step === "support_wait_message" && text) {
+    const supportText = `🆘 *Support Request*\n\nFrom: ${msg.from.first_name || "Customer"} (ID: ${msg.from.id})\nUsername: ${msg.from.username ? "@" + msg.from.username : "N/A"}\n\nMessage:\n${text}`;
+    const r = await tgSendMessage(ADMIN_CHAT_ID, supportText, { parse_mode: "Markdown" });
+    const j = await r.json().catch(() => null);
+    if (j?.ok) adminMessageMap.set(j.result.message_id, { customerChatId: chatId });
+    s.step = s.prevStep || null;
+    s.prevStep = null;
+    return tgSendMessage(chatId, "✅ Sent to admin. Please wait for a reply here.");
+  }
+
+  // name collection
+  if (s.step === "ask_name") {
+    s.name = text.trim();
+    s.step = "request_phone";
+    return tgSendMessage(chatId, "📱 Share your phone number:", {
       reply_markup: {
         keyboard: [[{ text: "📱 Share Phone", request_contact: true }]],
         resize_keyboard: true,
         one_time_keyboard: true,
       },
     });
-    return;
   }
 
-  // if user types during await_payment_proof
-  if (session.step === "await_payment_proof") {
-    await tgSendMessage(
-      chatId,
-      "📸 Please upload your GCash / QRPh payment screenshot."
-    );
-    return;
-  }
+  if (s.step === "await_payment_proof")
+    return tgSendMessage(chatId, "📸 Please upload your payment screenshot.");
 
-  // fallback
-  await tgSendMessage(chatId, "Please /start to begin.");
+  return tgSendMessage(chatId, "Please /start to begin.");
 }
 
 async function handleContact(msg) {
   const chatId = msg.chat.id;
-  const session = getSession(chatId);
-  if (session.step !== "request_phone") return;
-  session.phone = msg.contact.phone_number;
-  session.step = "request_location";
+  const s = getSession(chatId);
+  if (s.step !== "request_phone") return;
+  s.phone = msg.contact.phone_number;
+  s.step = "request_location";
   await tgSendMessage(chatId, "📍 Send your delivery location:", {
     reply_markup: {
       keyboard: [[{ text: "📍 Share Location", request_location: true }]],
@@ -402,29 +293,33 @@ async function handleContact(msg) {
 
 async function handleLocation(msg) {
   const chatId = msg.chat.id;
-  const session = getSession(chatId);
-  if (session.step !== "request_location") return;
+  const s = getSession(chatId);
+  if (s.step !== "request_location") return;
 
   const { latitude, longitude } = msg.location;
-  session.coords = { latitude, longitude };
-  session.address = await reverseGeocode(latitude, longitude);
-  session.step = "confirm";
+  s.coords = { latitude, longitude };
+  s.address = await reverseGeocode(latitude, longitude);
+  s.step = "confirm";
 
-  const itemsText = session.cart?.length
-    ? session.cart.map((it, i) => `${i + 1}. ${it.category} — ${it.amount}`).join("\n")
-    : `${session.category || "N/A"} — ${session.selectedAmount || "N/A"}`;
+  const items = s.cart?.length
+    ? s.cart.map((it, i) => `${i + 1}. ${it.category} — ${it.amount}`).join("\n")
+    : `${s.category || "N/A"} — ${s.selectedAmount || "N/A"}`;
 
-  const summary =
-    `📋 *Order Summary*\n\n` +
-    `🧺 Items:\n${itemsText}\n\n` +
-    `👤 ${session.name}\n` +
-    `📱 ${session.phone}\n` +
-    `📍 ${session.address}\n\n` +
-    `💰 *Payment Instructions:*\n` +
-    `Scan the QR (above) to pay via QRPh / GCash.\n` +
-    `After payment, tap *Payment Processed* and upload your proof.`;
+  const summary = `
+📋 *Order Summary*
 
-  // 1) send QR from /public/qrph.jpg
+🧺 Items:
+${items}
+
+👤 ${s.name}
+📱 ${s.phone}
+📍 ${s.address}
+
+💰 *Payment Instructions:*
+Scan the QR image above to pay via *QRPh / GCash (Mrs Eyes)*.
+After payment, tap *Payment Processed* and upload your proof.
+`.trim();
+
   if (HOST_URL) {
     const qrUrl = `${HOST_URL}/static/qrph.jpg`;
     await fetchFn(`${TELEGRAM_API}/sendPhoto`, {
@@ -438,267 +333,175 @@ async function handleLocation(msg) {
     });
   }
 
-  // 2) then send the summary with buttons
   await tgSendMessage(chatId, summary, {
     parse_mode: "Markdown",
-    reply_markup: {
+    reply_markup: addSupportRow({
       inline_keyboard: [
         [{ text: "💰 Payment Processed", callback_data: "order:confirm" }],
         [{ text: "❌ Cancel", callback_data: "order:cancel" }],
       ],
-    },
-  });
-
-  // remove reply keyboard
-  await tgSendMessage(chatId, " ", {
-    reply_markup: { remove_keyboard: true },
+    }),
   });
 }
 
 async function handlePhotoOrDocument(msg) {
   const chatId = msg.chat.id;
-  const session = getSession(chatId);
-  if (session.step !== "await_payment_proof") return;
+  const s = getSession(chatId);
+  if (s.step !== "await_payment_proof") return;
 
-  const fileId = msg.photo
-    ? msg.photo[msg.photo.length - 1].file_id
-    : msg.document?.file_id;
-
-  if (!fileId) {
-    await tgSendMessage(chatId, "⚠️ Please upload an image or PDF.");
-    return;
-  }
-
-  session.paymentProof = fileId;
-  await sendOrderToAdmin(session, msg.from);
+  const file = msg.photo ? msg.photo.pop().file_id : msg.document?.file_id;
+  if (!file) return tgSendMessage(chatId, "⚠️ Upload an image or PDF.");
+  s.paymentProof = file;
+  await sendOrderToAdmin(s, msg.from);
   sessions.set(chatId, {});
-  await tgSendMessage(
-    chatId,
-    "✅ Thank you! Payment screenshot received. Your order is being processed."
-  );
+
+  const message = [
+    "✅ *Thank you!* Payment screenshot received.",
+    "🛵 Your Grab delivery link will be generated and sent shortly.",
+    "⏳ Please keep this chat open while we process your order.",
+  ].join("\n");
+  await tgSendMessage(chatId, message, { parse_mode: "Markdown" });
 }
 
 async function handleCallbackQuery(cbq) {
   const data = cbq.data;
   const chatId = cbq.message.chat.id;
   const msgId = cbq.message.message_id;
-  const session = getSession(chatId);
+  const s = getSession(chatId);
 
-  // shop closed for customers
   if (!SHOP_OPEN && !ADMIN_IDS.includes(chatId)) {
-    await tgSendMessage(chatId, "🏪 Shop is closed. Please check back later.");
+    await tgSendMessage(chatId, "🏪 Shop closed. Please check back later!");
     return;
   }
 
   // ADMIN actions
   if (data.startsWith("admin:")) {
-    if (!ADMIN_IDS.includes(chatId) || !loggedInAdmins.has(chatId)) {
-      await tgSendMessage(chatId, "🚫 Unauthorized.");
-      return;
-    }
-
-    const action = data.split(":")[1];
-
-    if (action === "toggle_shop") {
+    const act = data.split(":")[1];
+    if (act === "toggle_shop") {
       SHOP_OPEN = !SHOP_OPEN;
-      await tgSendMessage(
-        chatId,
-        SHOP_OPEN ? "🟢 Shop is now OPEN." : "🔴 Shop is now CLOSED."
-      );
-      return;
+      return tgSendMessage(chatId, SHOP_OPEN ? "🟢 Shop is now OPEN." : "🔴 Shop is now CLOSED.");
     }
-
-    if (action === "view_orders") {
-      if (!orders.length) {
-        await tgSendMessage(chatId, "🧾 No orders yet.");
-        return;
-      }
+    if (act === "logout") {
+      loggedInAdmins.delete(chatId);
+      return tgSendMessage(chatId, "🔐 Logged out.");
+    }
+    if (act === "view_orders") {
+      if (!orders.length) return tgSendMessage(chatId, "🧾 No orders yet.");
       const list = orders
         .slice(0, 10)
-        .map(
-          (o) =>
-            `#${o.id} ${o.name} — ${o.items
-              .map((i) => i.amount)
-              .join(", ")} (${o.createdAt})`
-        )
+        .map((o) => `#${o.id} ${o.name} — ${o.items.map((i) => i.amount).join(", ")} (${o.createdAt})`)
         .join("\n");
-      await tgSendMessage(chatId, `🧾 Recent Orders:\n${list}`);
-      return;
+      return tgSendMessage(chatId, `🧾 Recent Orders:\n${list}`);
     }
-
-    if (action === "broadcast") {
-      session.step = "await_broadcast";
-      await tgSendMessage(chatId, "📢 Send the message to broadcast to all users.");
-      return;
+    if (act === "broadcast") {
+      s.prevStep = s.step || null;
+      s.step = "await_broadcast";
+      return tgSendMessage(chatId, "📢 Send the message to broadcast to all users.");
     }
-
-    if (action === "analytics") {
+    if (act === "analytics") {
       const total = orders.length;
       const counts = {};
-      for (const o of orders) {
-        for (const it of o.items) {
-          counts[it.category] = (counts[it.category] || 0) + 1;
-        }
-      }
+      for (const o of orders) for (const it of o.items) counts[it.category] = (counts[it.category] || 0) + 1;
       const top = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
-      await tgSendMessage(
-        chatId,
-        `📊 Total orders: ${total}\nTop item: ${
-          top ? `${top[0]} (${top[1]})` : "N/A"
-        }`
-      );
-      return;
+      return tgSendMessage(chatId, `📊 Total orders: ${total}\nTop item: ${top ? `${top[0]} (${top[1]})` : "N/A"}`);
     }
+  }
 
-    if (action === "logout") {
-      loggedInAdmins.delete(chatId);
-      await tgSendMessage(chatId, "🔐 Logged out.");
-      return;
-    }
+  // SUPPORT connect button
+  if (data === "support:connect") {
+    s.prevStep = s.step || null;
+    s.step = "support_wait_message";
+    return tgSendMessage(chatId, "🧑‍💼 Please type your message for the admin:");
   }
 
   // CUSTOMER actions
   if (data.startsWith("cat:")) {
-    session.category = data.slice(4);
-    session.step = "choose_amount";
-    ensureCart(session);
-    await tgEditMessageText(
-      chatId,
-      msgId,
-      `🧊 ${session.category} selected.\nPick amount or use cart 👇`,
-      {
-        reply_markup: buildAmountKeyboardFixed(session),
-      }
-    );
-    return;
+    s.category = data.slice(4);
+    s.step = "choose_amount";
+    ensureCart(s);
+    return tgEditMessageText(chatId, msgId, `🧊 ${s.category} selected.`, {
+      reply_markup: buildAmountKeyboard(s),
+    });
   }
 
   if (data.startsWith("amt:")) {
-    session.selectedAmount = data.slice(4);
-    await tgEditMessageText(
-      chatId,
-      msgId,
-      `💸 Selected ${session.selectedAmount}`,
-      {
-        reply_markup: buildAmountKeyboardFixed(session),
-      }
-    );
-    return;
+    s.selectedAmount = data.slice(4);
+    return tgEditMessageText(chatId, msgId, `💸 Selected ${s.selectedAmount}`, {
+      reply_markup: buildAmountKeyboard(s),
+    });
   }
 
   if (data === "cart:add") {
-    const s = getSession(chatId);
-    ensureCart(s);
-    if (!s.category || !s.selectedAmount) {
-      await tgSendMessage(chatId, "⚠️ Please select category and amount first.");
+    const session = getSession(chatId);
+    ensureCart(session);
+    if (!session.category || !session.selectedAmount) {
+      await tgSendMessage(chatId, "⚠️ Select category and amount first.");
       return;
     }
-    s.cart.push({
-      category: s.category,
-      amount: s.selectedAmount,
-      addedAt: Date.now(),
-    });
-    await tgSendMessage(
-      chatId,
-      `🛒 Added: ${s.category} — ${s.selectedAmount}`
-    );
-    await tgSendMessage(chatId, "You can add more or checkout 👇", {
-      reply_markup: buildAmountKeyboardFixed(s),
-    });
+    session.cart.push({ category: session.category, amount: session.selectedAmount });
+    await tgSendMessage(chatId, `🛒 Added: ${session.category} — ${session.selectedAmount}`);
     return;
   }
 
   if (data === "cart:view") {
-    ensureCart(session);
-    const txt = session.cart.length
-      ? session.cart
-          .map((x, i) => `${i + 1}. ${x.category} — ${x.amount}`)
-          .join("\n")
+    ensureCart(s);
+    const txt = s.cart.length
+      ? s.cart.map((x, i) => `${i + 1}. ${x.category} — ${x.amount}`).join("\n")
       : "🧺 Cart is empty.";
-    await tgSendMessage(chatId, txt);
-    return;
+    return tgSendMessage(chatId, txt);
   }
 
   if (data === "cart:checkout") {
-    ensureCart(session);
-    if (!session.cart.length && session.category && session.selectedAmount) {
-      session.cart.push({
-        category: session.category,
-        amount: session.selectedAmount,
-      });
-    }
-    if (!session.cart.length) {
-      await tgSendMessage(chatId, "🧺 Cart is empty.");
-      return;
-    }
-    session.step = "ask_name";
-    await tgSendMessage(chatId, "📝 Enter your name:");
-    return;
+    ensureCart(s);
+    if (!s.cart.length && s.category && s.selectedAmount)
+      s.cart.push({ category: s.category, amount: s.selectedAmount });
+    if (!s.cart.length) return tgSendMessage(chatId, "🧺 Cart empty.");
+    s.step = "ask_name";
+    return tgSendMessage(chatId, "📝 Enter your name:");
   }
 
   if (data === "order:confirm") {
-    session.step = "await_payment_proof";
-    await tgSendMessage(
-      chatId,
-      "📸 Please upload a screenshot/photo of your payment."
-    );
-    return;
+    s.step = "await_payment_proof";
+    return tgSendMessage(chatId, "📸 Please upload your GCash/QRPh payment screenshot.");
   }
 
   if (data === "order:cancel") {
     sessions.set(chatId, {});
-    await tgEditMessageText(chatId, msgId, "❌ Order canceled.");
-    return;
+    return tgEditMessageText(chatId, msgId, "❌ Order canceled.");
   }
 }
 
-// ───────── TELEGRAM WEBHOOK ROUTE ─────────
-const secretPath = `/telegraf/${BOT_TOKEN}`;
+// ───────── WEBHOOK + SERVER ─────────
+const path = `/telegraf/${BOT_TOKEN}`;
 
-app.post(secretPath, async (req, res) => {
-  const update = req.body;
+app.post(path, async (req, res) => {
+  const u = req.body;
   try {
-    if (update.message) {
-      const m = update.message;
-      if (m.contact) {
-        await handleContact(m);
-      } else if (m.location) {
-        await handleLocation(m);
-      } else if (m.photo || m.document) {
-        await handlePhotoOrDocument(m);
-      } else {
-        await handleMessage(m);
-      }
-    } else if (update.callback_query) {
-      await handleCallbackQuery(update.callback_query);
+    if (u.message) {
+      const m = u.message;
+      if (m.contact) await handleContact(m);
+      else if (m.location) await handleLocation(m);
+      else if (m.photo || m.document) await handlePhotoOrDocument(m);
+      else await handleMessage(m);
+    } else if (u.callback_query) {
+      await handleCallbackQuery(u.callback_query);
     }
   } catch (err) {
-    console.error("Update error:", err);
+    console.error("❌ Update error:", err);
   }
   res.sendStatus(200);
 });
 
-// health + ping
-app.get("/", (req, res) => {
-  res.send("IceOrderBot is running (webhook mode).");
-});
-app.get("/ping", (req, res) => {
-  res.send("pong");
-});
-app.get("/health", (req, res) => {
-  res.json({
-    ok: true,
-    shop_open: SHOP_OPEN,
-    total_orders: orders.length,
-    uptime: process.uptime(),
-  });
-});
+// health / ping
+app.get("/", (_, res) => res.send("🧊 IceOrderBot is running (webhook mode)."));
+app.get("/ping", (_, res) => res.send("pong"));
+app.get("/health", (_, res) =>
+  res.json({ ok: true, shop_open: SHOP_OPEN, orders: orders.length, uptime: process.uptime() })
+);
 
 // ───────── START SERVER ─────────
 app.listen(PORT, async () => {
   console.log(`🚀 Server running on port ${PORT}`);
-
-  // set Telegram /menu commands
   try {
     await fetchFn(`${TELEGRAM_API}/setMyCommands`, {
       method: "POST",
@@ -708,20 +511,19 @@ app.listen(PORT, async () => {
   } catch (err) {
     console.error("setMyCommands error:", err);
   }
-
   if (HOST_URL) {
-    const webhookUrl = `${HOST_URL}${secretPath}`;
+    const webhook = `${HOST_URL}${path}`;
     try {
       await fetchFn(`${TELEGRAM_API}/setWebhook`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: webhookUrl }),
+        body: JSON.stringify({ url: webhook }),
       });
-      console.log("✅ Webhook set to:", webhookUrl);
+      console.log("✅ Webhook set to:", webhook);
     } catch (err) {
       console.error("Failed to set webhook:", err);
     }
   } else {
-    console.warn("⚠️ HOST_URL is not set — set webhook manually in BotFather.");
+    console.warn("⚠️ HOST_URL is not set — set webhook manually if needed.");
   }
 });

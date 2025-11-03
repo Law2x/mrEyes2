@@ -3,6 +3,7 @@ import express from "express";
 import fetchPkg from "node-fetch";
 const fetchFn = typeof fetch !== "undefined" ? fetch : fetchPkg;
 import { generateReceiptPNG } from "./lib/ereceipt.js";
+import { db, kvGet, kvSet } from "./db.js";
 
 // ───────── CONFIG ─────────
 const BOT_TOKEN = process.env.BOT_TOKEN;
@@ -12,22 +13,23 @@ const PORT = process.env.PORT || 3000;
 const ADMIN_IDS = process.env.ADMIN_IDS
   ? process.env.ADMIN_IDS.split(",").map((id) => Number(id.trim()))
   : [];
+const ADMIN_DASH_PASSWORD = process.env.ADMIN_DASH_PASSWORD || "change-me";
 
 if (!BOT_TOKEN) throw new Error("BOT_TOKEN missing.");
+if (!ADMIN_CHAT_ID) console.warn("⚠️ ADMIN_CHAT_ID missing or 0.");
 const TELEGRAM_API = `https://api.telegram.org/bot${BOT_TOKEN}`;
 
-// ───────── STATE ─────────
+// ───────── STATE (in-memory runtime only) ─────────
 const sessions = new Map();         // chatId -> session
 const adminMessageMap = new Map();  // adminMsgId -> { customerChatId }
 const loggedInAdmins = new Set();
-const orders = [];                  // in-memory order log
 let orderCounter = 1;
-let SHOP_OPEN = true;
+let SHOP_OPEN = kvGet("shop_open") === "1"; // persisted flag
 
 // ───────── EXPRESS ─────────
 const app = express();
 app.use(express.json());
-app.use("/static", express.static("public")); // serve qrph.jpg etc.
+app.use("/static", express.static("public")); // serve qrph.jpg, etc.
 
 // ───────── BASIC TG HELPERS ─────────
 async function tgSendMessage(chatId, text, extra = {}) {
@@ -118,29 +120,36 @@ async function reverseGeocode(lat, lon) {
   } catch { return `${lat}, ${lon}`; }
 }
 
-// ───────── ADMIN NOTIFY ─────────
+// ───────── ADMIN NOTIFY + DB INSERT ─────────
 async function sendOrderToAdmin(s, from) {
   const ts = new Date().toLocaleString("en-US", { timeZone: "Asia/Manila" });
-  const items = s.cart?.length
-    ? s.cart.map((i) => `${i.category} — ${i.amount}`).join("\n")
-    : `${s.category || "N/A"} — ${s.selectedAmount || "N/A"}`;
+  const itemsArr = s.cart?.length ? s.cart : [{ category: s.category, amount: s.selectedAmount }];
   const coords = s.coords ? `${s.coords.latitude}, ${s.coords.longitude}` : "N/A";
-  const id = orderCounter++;
 
-  orders.unshift({
-    id,
-    customerChatId: from.id,
-    name: s.name, phone: s.phone,
-    address: s.address, coords: s.coords,
-    items: s.cart || [], createdAt: ts,
-  });
-  if (orders.length > 200) orders.pop();
+  // DB: insert order
+  const ins = db.prepare(`
+    INSERT INTO orders (customer_chat_id, name, phone, address, lat, lon, items_json, payment_proof_file_id, status)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+  const result = ins.run(
+    from.id,
+    s.name || null,
+    s.phone || null,
+    s.address || null,
+    s.coords?.latitude || null,
+    s.coords?.longitude || null,
+    JSON.stringify(itemsArr),
+    s.paymentProof || null,
+    s.paymentProof ? "paid" : "created"
+  );
+  s.dbOrderId = result.lastInsertRowid;
 
+  const itemsText = itemsArr.map((i) => `${i.category} — ${i.amount}`).join("\n");
   const text = `
-🧊 NEW ORDER (#${id})
+🧊 NEW ORDER (#${s.dbOrderId})
 
 🧺 Items:
-${items}
+${itemsText}
 
 👤 ${s.name}
 📱 ${s.phone}
@@ -156,7 +165,9 @@ ${items}
   const r = await tgSendMessage(ADMIN_CHAT_ID, text);
   const j = await r.json().catch(() => null);
   if (j?.ok) adminMessageMap.set(j.result.message_id, { customerChatId: from.id });
+
   if (s.coords) await tgSendLocation(ADMIN_CHAT_ID, s.coords.latitude, s.coords.longitude);
+
   if (s.paymentProof) {
     await fetchFn(`${TELEGRAM_API}/sendPhoto`, {
       method: "POST",
@@ -164,20 +175,22 @@ ${items}
       body: JSON.stringify({
         chat_id: ADMIN_CHAT_ID,
         photo: s.paymentProof,
-        caption: `💰 GCash/QRPh screenshot for order #${id}`,
+        caption: `💰 GCash/QRPh screenshot for order #${s.dbOrderId}`,
       }),
     });
   }
   await refreshAllAdminPanels();
 }
 
-// ───────── ADMIN CENTER (LIVE) ─────────
+// ───────── ADMIN CENTER (Telegram, LIVE) ─────────
 const adminPanels = new Map(); // adminChatId -> message_id
 
 function adminPanelText() {
   const openIcon = SHOP_OPEN ? "🟢 OPEN" : "🔴 CLOSED";
   const active = sessions.size;
-  const totalOrders = orders.length;
+  // DB: count last 24h
+  const row = db.prepare(`SELECT COUNT(*) as c FROM orders WHERE created_at >= datetime('now','-1 day')`).get();
+  const totalOrders = row.c;
   return [
     "🧑‍💼 *Admin Center*",
     `🏪 Shop: *${openIcon}*`,
@@ -209,9 +222,7 @@ async function renderAdminPanel(chatId) {
   }
 }
 async function refreshAllAdminPanels() {
-  for (const adminId of loggedInAdmins) {
-    await renderAdminPanel(adminId);
-  }
+  for (const adminId of loggedInAdmins) { await renderAdminPanel(adminId); }
 }
 
 // ───────── COMMAND DISPATCH ─────────
@@ -325,7 +336,7 @@ async function handleMessage(msg) {
     return;
   }
 
-  // broadcast input step (if you later add it back)
+  // admin broadcast (if used)
   if (s.step === "admin_broadcast" && loggedInAdmins.has(chatId)) {
     s.step = null;
     for (const [cid] of sessions) if (cid !== chatId)
@@ -365,7 +376,7 @@ async function handleMessage(msg) {
 async function handleContact(msg) {
   const chatId = msg.chat.id;
 
-  // BLOCK contact step while closed (remove this if you want mid-flows to continue)
+  // BLOCK while closed
   if (!SHOP_OPEN && !ADMIN_IDS.includes(chatId)) {
     await tgSendMessage(chatId, "🏪 The shop is currently CLOSED. Please check back later!");
     return;
@@ -386,7 +397,7 @@ async function handleContact(msg) {
 async function handleLocation(msg) {
   const chatId = msg.chat.id;
 
-  // BLOCK location step while closed (remove this if you want mid-flows to continue)
+  // BLOCK while closed
   if (!SHOP_OPEN && !ADMIN_IDS.includes(chatId)) {
     await tgSendMessage(chatId, "🏪 The shop is currently CLOSED. Please check back later!");
     return;
@@ -432,7 +443,7 @@ After payment, tap *Payment Processed* and upload your proof.
 async function handlePhotoOrDocument(msg) {
   const chatId = msg.chat.id;
 
-  // BLOCK photo/doc step while closed (remove this if you want mid-flows to continue)
+  // BLOCK while closed
   if (!SHOP_OPEN && !ADMIN_IDS.includes(chatId)) {
     await tgSendMessage(chatId, "🏪 The shop is currently CLOSED. Please check back later!");
     return;
@@ -463,15 +474,21 @@ async function handleCallbackQuery(cbq) {
   if (!SHOP_OPEN && !ADMIN_IDS.includes(chatId))
     return tgSendMessage(chatId, "🏪 Shop closed. Please check back later!");
 
-  // Admin center
+  // Admin center (Telegram)
   if (data.startsWith("admin:")) {
     if (!loggedInAdmins.has(chatId)) return tgSendMessage(chatId, "🚫 You are not logged in as admin.");
     if (data === "admin:view_orders") {
-      if (!orders.length) return tgSendMessage(chatId, "🧾 No orders yet.");
-      const list = orders
-        .slice(0, 10)
-        .map(o => `#${o.id} ${o.name} — ${o.items.map(i=>i.amount).join(", ")} (${o.createdAt})`)
-        .join("\n");
+      const rows = db.prepare(`
+        SELECT id, name, items_json, created_at, status FROM orders
+        ORDER BY id DESC LIMIT 10
+      }).all();`).all(); // (fix editor coloring)
+      // if the previous line trips your editor, use the block below:
+      // const rows = db.prepare("SELECT id, name, items_json, created_at, status FROM orders ORDER BY id DESC LIMIT 10").all();
+
+      const list = rows.map(r => {
+        const items = JSON.parse(r.items_json).map(i=>i.amount).join(", ");
+        return `#${r.id} ${r.name || "N/A"} — ${items} (${r.status}, ${r.created_at})`;
+      }).join("\n") || "—";
       await tgSendMessage(chatId, `📋 Recent Orders:\n${list}`);
       return;
     }
@@ -482,6 +499,7 @@ async function handleCallbackQuery(cbq) {
     }
     if (data === "admin:toggle_shop") {
       SHOP_OPEN = !SHOP_OPEN;
+      kvSet("shop_open", SHOP_OPEN ? "1" : "0");
       await refreshAllAdminPanels();
       return;
     }
@@ -501,13 +519,17 @@ async function handleCallbackQuery(cbq) {
     return;
   }
 
-  // Customer: delivery received → dynamic e-receipt
+  // Customer: delivery received → dynamic e-receipt + DB update
   if (data === "order:received") {
     s.status = "delivered";
+    if (s.dbOrderId) {
+      db.prepare(`UPDATE orders SET status = 'delivered' WHERE id = ?`).run(s.dbOrderId);
+    }
+
     await tgSendMessage(chatId, "✅ Thank you for confirming! We’re glad your order arrived safely. 💙");
 
     const order = {
-      id: orderCounter, // or your persisted id
+      id: s.dbOrderId || Date.now(),
       name: s.name, phone: s.phone, address: s.address,
       items: s.cart?.length ? s.cart : [{ category: s.category, amount: s.selectedAmount }],
       ts: new Date().toLocaleString("en-US", { timeZone: "Asia/Manila" }),
@@ -569,6 +591,7 @@ async function handleCallbackQuery(cbq) {
     return;
   }
   if (data === "order:cancel") {
+    if (s.dbOrderId) db.prepare(`UPDATE orders SET status = 'canceled' WHERE id = ?`).run(s.dbOrderId);
     sessions.set(chatId, { status: "idle" });
     await tgEditMessageText(chatId, msgId, "❌ Order canceled.");
     return;
@@ -613,12 +636,174 @@ setInterval(() => {
   }
 }, 10 * 60 * 1000);
 
-// ───────── HEALTH + STARTUP ─────────
+// ───────── HEALTH ─────────
 app.get("/", (_, r) => r.send("🧊 IceOrderBot running (webhook mode)."));
 app.get("/health", (_, r) =>
   r.json({ ok: true, shop_open: SHOP_OPEN, active_sessions: sessions.size, uptime: process.uptime() })
 );
 
+// ───────── SIMPLE ADMIN DASHBOARD (password-gated) ─────────
+function auth(req, res, next) {
+  const pass = req.query.key || req.headers["x-admin-key"] || "";
+  if (pass === ADMIN_DASH_PASSWORD) return next();
+  res.status(401).send("Unauthorized. Append ?key=YOUR_ADMIN_DASH_PASSWORD");
+}
+
+app.get("/admin", auth, (req, res) => {
+  res.type("html").send(`<!doctype html>
+<html>
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Mrs Eyes — Admin Dashboard</title>
+<style>
+  body{font-family:system-ui,Arial,sans-serif;max-width:1100px;margin:24px auto;padding:0 16px;}
+  header{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px}
+  .pill{padding:6px 12px;border-radius:999px;background:#f2f2f2;display:inline-block}
+  button{padding:8px 12px;border:1px solid #ddd;border-radius:8px;background:#fff;cursor:pointer}
+  table{border-collapse:collapse;width:100%;margin-top:16px}
+  th,td{border:1px solid #eee;padding:8px;text-align:left;font-size:14px}
+  th{background:#fafafa}
+  .row-actions{display:flex;gap:8px}
+  .ok{color:#0a0}
+  .warn{color:#a00}
+  .muted{color:#666}
+  input[type=text]{padding:6px 8px;border:1px solid #ddd;border-radius:6px}
+</style>
+</head>
+<body>
+<header>
+  <h2>Mrs Eyes — Admin Dashboard</h2>
+  <div>
+    <span id="shop" class="pill">Status: …</span>
+    <button id="toggleBtn">Toggle Shop</button>
+  </div>
+</header>
+
+<section>
+  <h3>Orders</h3>
+  <div class="muted">Showing latest 100</div>
+  <table id="orders">
+    <thead><tr>
+      <th>ID</th><th>Name</th><th>Items</th><th>Status</th><th>Created</th><th>Delivery Link</th><th>Actions</th>
+    </tr></thead>
+    <tbody></tbody>
+  </table>
+</section>
+
+<script>
+const key = new URLSearchParams(location.search).get("key") || "";
+async function api(path, opts={}){
+  const url = path + (path.includes("?") ? "&" : "?") + "key=" + encodeURIComponent(key);
+  const r = await fetch(url, Object.assign({headers:{"Content-Type":"application/json"}}, opts));
+  if (!r.ok) throw new Error(await r.text());
+  return r.json();
+}
+
+async function load() {
+  const meta = await api("/api/meta");
+  document.getElementById("shop").textContent = "Status: " + (meta.shop_open ? "OPEN" : "CLOSED");
+  const { orders } = await api("/api/orders?limit=100");
+  const tb = document.querySelector("#orders tbody");
+  tb.innerHTML = "";
+  for (const o of orders) {
+    const tr = document.createElement("tr");
+    const items = o.items_json.map(i => i.category + " — " + i.amount).join(", ");
+    tr.innerHTML = \`
+      <td>\${o.id}</td>
+      <td>\${o.name || "—"}</td>
+      <td>\${items}</td>
+      <td>\${o.status}</td>
+      <td class="muted">\${o.created_at}</td>
+      <td>
+        <input type="text" value="\${o.delivery_link || ""}" data-id="\${o.id}" class="dl" placeholder="https://..."/>
+        <button data-id="\${o.id}" class="save">Save</button>
+      </td>
+      <td class="row-actions">
+        <button data-id="\${o.id}" class="delivered">Mark Delivered</button>
+        <button data-id="\${o.id}" class="cancel">Cancel</button>
+      </td>\`;
+    tb.appendChild(tr);
+  }
+}
+
+document.getElementById("toggleBtn").onclick = async ()=>{
+  await api("/api/shop/toggle", {method:"POST", body:"{}"});
+  await load();
+};
+
+document.addEventListener("click", async (e)=>{
+  if(e.target.classList.contains("delivered")){
+    const id = e.target.getAttribute("data-id");
+    await api("/api/orders/"+id+"/status", {method:"POST", body: JSON.stringify({status:"delivered"})});
+    await load();
+  }
+  if(e.target.classList.contains("cancel")){
+    const id = e.target.getAttribute("data-id");
+    await api("/api/orders/"+id+"/status", {method:"POST", body: JSON.stringify({status:"canceled"})});
+    await load();
+  }
+  if(e.target.classList.contains("save")){
+    const id = e.target.getAttribute("data-id");
+    const val = e.target.parentElement.querySelector(".dl").value.trim();
+    await api("/api/orders/"+id+"/delivery", {method:"POST", body: JSON.stringify({delivery_link:val})});
+    alert("Saved.");
+  }
+});
+
+load();
+</script>
+</body></html>`);
+});
+
+// Admin JSON APIs (password-gated)
+app.get("/api/meta", auth, (req, res) => {
+  res.json({ ok: true, shop_open: SHOP_OPEN });
+});
+
+app.get("/api/orders", auth, (req, res) => {
+  const limit = Math.min(parseInt(req.query.limit || "100", 10), 500);
+  const rows = db.prepare(`SELECT id, name, phone, address, lat, lon, items_json, payment_proof_file_id, delivery_link, status, created_at
+                           FROM orders ORDER BY id DESC LIMIT ?`).all(limit);
+  const orders = rows.map(r => ({ ...r, items_json: JSON.parse(r.items_json) }));
+  res.json({ ok: true, orders });
+});
+
+app.post("/api/shop/toggle", auth, (req, res) => {
+  SHOP_OPEN = !SHOP_OPEN;
+  kvSet("shop_open", SHOP_OPEN ? "1" : "0");
+  res.json({ ok: true, shop_open: SHOP_OPEN });
+});
+
+app.post("/api/orders/:id/status", auth, (req, res) => {
+  const id = Number(req.params.id);
+  let body = "";
+  req.on("data", (c)=> body += c);
+  req.on("end", ()=>{
+    try {
+      const { status } = JSON.parse(body || "{}");
+      if (!["created","paid","complete","delivered","canceled"].includes(status))
+        return res.status(400).json({ ok:false, error:"invalid status" });
+      db.prepare(`UPDATE orders SET status = ? WHERE id = ?`).run(status, id);
+      res.json({ ok: true });
+    } catch (e) { res.status(400).json({ ok:false, error:String(e) }); }
+  });
+});
+
+app.post("/api/orders/:id/delivery", auth, (req, res) => {
+  const id = Number(req.params.id);
+  let body = "";
+  req.on("data", (c)=> body += c);
+  req.on("end", ()=>{
+    try {
+      const { delivery_link } = JSON.parse(body || "{}");
+      db.prepare(`UPDATE orders SET delivery_link = ? WHERE id = ?`).run(delivery_link || null, id);
+      res.json({ ok: true });
+    } catch (e) { res.status(400).json({ ok:false, error:String(e) }); }
+  });
+});
+
+// ───────── STARTUP (menu + webhook) ─────────
 app.listen(PORT, async () => {
   console.log(`🚀 Server running on port ${PORT}`);
 
@@ -655,3 +840,10 @@ app.listen(PORT, async () => {
     console.warn("⚠️ HOST_URL not set — please set webhook manually.");
   }
 });
+
+// Simple auth middleware (kept at bottom to use function hoist)
+function auth(req, res, next) {
+  const pass = req.query.key || req.headers["x-admin-key"] || "";
+  if (pass === ADMIN_DASH_PASSWORD) return next();
+  res.status(401).send("Unauthorized. Append ?key=YOUR_ADMIN_DASH_PASSWORD");
+}

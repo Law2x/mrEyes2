@@ -24,50 +24,48 @@ const TELEGRAM_API = `https://api.telegram.org/bot${BOT_TOKEN}`;
 const PRICE_LIST = {
   sachet: [
     { label: "₱500 — 0.028",   callback: "amt:₱500" },
-    { label: "₱700 — 0.042",   callback: "amt:₇00".replace("₇","7") }, // guard copy/paste
+    { label: "₱700 — 0.042",   callback: "amt:₱700" },
     { label: "₱1,000 — 0.056", callback: "amt:₱1000" },
-    { label: "₱2,000 — Half",  callback: "amt:₲2000".replace("₲","₱") },
-    { label: "₱3,800 — 8",     callback: "amt:₱3800" },
+    { label: "₱2,000 — Half",  callback: "amt:₱2000" },
+    { label: "₱3,800 — G",     callback: "amt:₱3800" },
   ],
   syringe: [
     { label: "₱500 — 12 units",  callback: "amt:₱500" },
     { label: "₱700 — 20 units",  callback: "amt:₱700" },
     { label: "₱1,000 — 30 units",callback: "amt:₱1000" },
   ],
+  // Poppers top level
   poppers: [
     { label: "⚡ Fast-acting",  callback: "cat:poppers_fast" },
     { label: "🌿 Smooth blend", callback: "cat:poppers_smooth" },
     { label: "💎 Premium",      callback: "cat:poppers_premium" },
   ],
-  // All poppers ₱700; items can appear in multiple groups
+  // Poppers subgroups (₱700 each). Items can appear in multiple groups.
   poppers_fast: [
     { label: "Rush Ultra Strong (Yellow) — ₱700", callback: "amt:Rush Ultra Strong (Yellow)" },
     { label: "Iron Horse — ₱700",                 callback: "amt:Iron Horse" },
-    { label: "Jungle Juice Platinum — ₱700",      callback: "amt:Jungle Juice Platinum" },
+    { label: "Jungle Juice Platinum — ₱700",      callback: "amt:Jungle Juice Platinum" }, // also premium
   ],
   poppers_smooth: [
     { label: "Blue Boy — ₱700",        callback: "amt:Blue Boy" },
     { label: "Cannabis — ₱700",        callback: "amt:Cannabis" },
     { label: "Pink Amsterdam — ₱700",  callback: "amt:Pink Amsterdam" },
-    { label: "Manscent — ₱700",        callback: "amt:Manscent" },
+    { label: "Manscent — ₱700",        callback: "amt:Manscent" }, // also premium
   ],
   poppers_premium: [
-    { label: "Jungle Juice Platinum — ₱700", callback: "amt:Jungle Juice Platinum" },
-    { label: "Manscent — ₱700",              callback: "amt:Manscent" },
+    { label: "Jungle Juice Platinum — ₱700", callback: "amt:Jungle Juice Platinum" }, // also fast
+    { label: "Manscent — ₱700",              callback: "amt:Manscent" },              // also smooth
   ],
 };
 
 // ───────── STATE ─────────
 let SHOP_OPEN = true;
-const sessions = new Map();               // chatId -> { cart, step, ... }
-const adminMessageMap = new Map();        // adminMsgId -> { customerChatId }
-const orders = [];                        // in-memory orders
+const sessions = new Map();        // chatId -> { cart, step, ... }
+const adminMessageMap = new Map(); // adminMsgId -> { customerChatId }
+const orders = [];                 // in-memory orders
 let nextOrderId = 1;
 
-const adminState = {
-  mode: null,            // 'broadcast' | 'await_delivery_link'
-  deliveryOrderId: null,
-};
+const adminState = { mode: null, deliveryOrderId: null }; // 'broadcast' | 'await_delivery_link'
 
 // ───────── EXPRESS ─────────
 const app = express();
@@ -131,16 +129,14 @@ async function forwardCustomerMessageToAdmin(chatId, text) {
 
   const r = await tgSendMessage(ADMIN_CHAT_ID, header, { parse_mode: "Markdown" });
   const j = await r.json().catch(() => null);
-  if (j?.ok) {
-    adminMessageMap.set(j.result.message_id, { customerChatId: chatId });
-  }
+  if (j?.ok) adminMessageMap.set(j.result.message_id, { customerChatId: chatId });
   await tgSendMessage(chatId, "✅ Sent to admin. We’ll reply here as soon as possible.");
 }
 
-// ───────── QR (with Payment button + Contact Admin button) ─────────
+// ───────── QR (with Payment + Contact Admin) ─────────
 async function sendPaymentQR(chatId) {
   try {
-    const filePath = path.join(__dirname, "public", "gcash.jpg");
+    const filePath = path.join(__dirname, "public", "qrph.jpg");
     const buf = await fs.readFile(filePath);
 
     const fd = new FormData();
@@ -198,7 +194,7 @@ async function reverseGeocode(lat, lon) {
   } catch { return `${lat}, ${lon}`; }
 }
 
-// ───────── KEYBOARDS (with persistent Contact Admin) ─────────
+// ───────── KEYBOARDS (persistent Contact Admin) ─────────
 function buildCategoryKeyboard() {
   return {
     inline_keyboard: [
@@ -228,7 +224,7 @@ function buildAmountKeyboard(s) {
     { text: "🧾 View Cart",  callback_data: "cart:view" },
   ]);
   inline_keyboard.push([{ text: "✅ Checkout", callback_data: "cart:checkout" }]);
-  inline_keyboard.push([{ text: "🧑‍💼 Contact Admin", callback_data: "contact:admin" }]); // persistent
+  inline_keyboard.push([{ text: "🧑‍💼 Contact Admin", callback_data: "contact:admin" }]);
   return { inline_keyboard };
 }
 
@@ -325,10 +321,7 @@ async function handleCallbackQuery(cbq) {
   }
 
   // CONTACT ADMIN
-  if (data === "contact:admin") {
-    await startContactAdmin(chatId);
-    return;
-  }
+  if (data === "contact:admin") { await startContactAdmin(chatId); return; }
   if (data === "contact:cancel") {
     s.step = "ordering";
     await tgEditMessageText(chatId, msgId, "📂 Back to Categories", {
@@ -442,9 +435,7 @@ async function handleCallbackQuery(cbq) {
     const amount = data.slice(4);         // peso amount or poppers brand label
     ensureCart(s);
     s.selectedAmount = amount;
-    const itemLabel = (s.category?.startsWith("poppers"))
-      ? `₱700 • ${amount}`
-      : amount;
+    const itemLabel = (s.category?.startsWith("poppers")) ? `₱700 • ${amount}` : amount;
     s.cart.push({ category: s.category, amount: itemLabel });
     await tgSendMessage(chatId, `🛒 Added: ${s.category} — ${itemLabel}`);
     await tgEditMessageText(
@@ -490,7 +481,7 @@ async function handleMessage(msg) {
   const text = (msg.text || "").trim();
   const s = getSession(chatId);
 
-  // Admin reply-bridge
+  // Admin reply bridge
   if (chatId === ADMIN_CHAT_ID && msg.reply_to_message) {
     const info = adminMessageMap.get(msg.reply_to_message.message_id);
     if (!info) return tgSendMessage(chatId, "⚠️ Cannot map reply to a customer.");
@@ -535,7 +526,7 @@ async function handleMessage(msg) {
     return;
   }
 
-  // /admin
+  // Admin command
   if (text === "/admin") {
     if (chatId !== ADMIN_CHAT_ID) return tgSendMessage(chatId, "⛔ This command is for admin only.");
     await openAdminCenter();
@@ -543,6 +534,28 @@ async function handleMessage(msg) {
   }
   if (text === "/open")  { SHOP_OPEN = true;  return tgSendMessage(chatId, "🟢 Shop is now OPEN."); }
   if (text === "/close") { SHOP_OPEN = false; return tgSendMessage(chatId, "🔴 Shop is now CLOSED."); }
+
+  // Public commands (menu support)
+  if (text === "/menu") {
+    if (!SHOP_OPEN) return tgSendMessage(chatId, "🏪 The shop is closed.");
+    return tgSendMessage(chatId, "🧊 Choose a product type 👇", { reply_markup: buildCategoryKeyboard() });
+  }
+  if (text === "/help") {
+    return tgSendMessage(chatId, "ℹ️ Use /start to begin, tap a category, then checkout. Need help? Tap “Contact Admin”.");
+  }
+  if (text === "/faq") {
+    return tgSendMessage(chatId, "❓ FAQ:\n• Payment via QRPh/GCash\n• Share location for delivery\n• Tap 'Payment Processed' then upload proof.");
+  }
+  if (text === "/viewcart") {
+    const txt = s.cart?.length ? itemsToText(s.cart) : "🧺 Cart empty.";
+    return tgSendMessage(chatId, txt);
+  }
+  if (text === "/checkout") {
+    if (!s.cart?.length) return tgSendMessage(chatId, "🧺 Your cart is empty.");
+    s.step = "ask_name";
+    return tgSendMessage(chatId, "📝 Please enter your name:");
+  }
+  if (text === "/contact") return startContactAdmin(chatId);
 
   // Start (Terms & Conditions gate + Yelo🟡Spot welcome)
   if (text === "/start" || text === "/restart") {
@@ -652,9 +665,7 @@ Scan the QR (QRPh / GCash) below, then tap *Payment Processed* and upload your p
 
   await tgSendMessage(chatId, summary, {
     parse_mode: "Markdown",
-    reply_markup: {
-      inline_keyboard: [[{ text: "🧑‍💼 Contact Admin", callback_data: "contact:admin" }]],
-    }
+    reply_markup: { inline_keyboard: [[{ text: "🧑‍💼 Contact Admin", callback_data: "contact:admin" }]] }
   });
   await sendPaymentQR(chatId);
 }
@@ -668,7 +679,6 @@ async function handlePhotoOrDocument(msg) {
 
   s.paymentProof = msg.photo ? msg.photo.pop().file_id : msg.document?.file_id;
 
-  // Create an order record
   const order = {
     id: nextOrderId++,
     customerChatId: chatId,
@@ -683,10 +693,8 @@ async function handlePhotoOrDocument(msg) {
   };
   orders.push(order);
 
-  // Notify admin
   await notifyAdminNewOrder(order, msg.from);
 
-  // Acknowledge customer
   s.status = "complete";
   await tgSendMessage(
     chatId,
@@ -722,6 +730,8 @@ app.get("/health", (_, r) =>
 
 app.listen(PORT, async () => {
   console.log(`🚀 Server running on port ${PORT}`);
+
+  // Set webhook
   if (HOST_URL) {
     const webhook = `${HOST_URL}${pathWebhook}`;
     try {
@@ -731,8 +741,35 @@ app.listen(PORT, async () => {
         body: JSON.stringify({ url: webhook }),
       });
       console.log(`✅ Webhook set to: ${webhook}`);
-    } catch (err) { console.error("❌ Failed to set webhook:", err); }
+    } catch (err) {
+      console.error("❌ Failed to set webhook:", err);
+    }
   } else {
     console.warn("⚠️ HOST_URL not set — please set webhook manually.");
+  }
+
+  // ---- PERSISTENT MENU COMMANDS ----
+  try {
+    await fetchFn(`${TELEGRAM_API}/setMyCommands`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        commands: [
+          { command: "start",    description: "Start ordering" },
+          { command: "restart",  description: "Restart session" },
+          { command: "menu",     description: "Show categories" },
+          { command: "viewcart", description: "View your cart" },
+          { command: "checkout", description: "Checkout order" },
+          { command: "contact",  description: "Contact admin" },
+          { command: "help",     description: "How to use Yelo🟡Spot" },
+          { command: "faq",      description: "FAQs" },
+          { command: "status",   description: "Check order status" },
+          // NOTE: We keep /admin hidden from menu; still works if admin types it.
+        ],
+      }),
+    });
+    console.log("✅ Telegram menu commands registered.");
+  } catch (e) {
+    console.error("❌ Failed to set menu commands:", e);
   }
 });

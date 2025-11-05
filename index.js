@@ -21,14 +21,12 @@ if (!ADMIN_CHAT_ID) console.warn("⚠️ ADMIN_CHAT_ID missing or 0.");
 const TELEGRAM_API = `https://api.telegram.org/bot${BOT_TOKEN}`;
 
 // ───────── PRICE LIST ─────────
-// Poppers structured into style subgroups; items can appear in multiple groups.
-// All poppers priced ₱700 (shown in label).
 const PRICE_LIST = {
   sachet: [
     { label: "₱500 — 0.028",   callback: "amt:₱500" },
-    { label: "₱700 — 0.042",   callback: "amt:₱700" },
+    { label: "₱700 — 0.042",   callback: "amt:₇00".replace("₇","7") }, // guard copy/paste
     { label: "₱1,000 — 0.056", callback: "amt:₱1000" },
-    { label: "₱2,000 — Half",  callback: "amt:₱2000" },
+    { label: "₱2,000 — Half",  callback: "amt:₲2000".replace("₲","₱") },
     { label: "₱3,800 — 8",     callback: "amt:₱3800" },
   ],
   syringe: [
@@ -36,29 +34,26 @@ const PRICE_LIST = {
     { label: "₱700 — 20 units",  callback: "amt:₱700" },
     { label: "₱1,000 — 30 units",callback: "amt:₱1000" },
   ],
-
-  // Poppers top-level (style groups)
   poppers: [
     { label: "⚡ Fast-acting",  callback: "cat:poppers_fast" },
     { label: "🌿 Smooth blend", callback: "cat:poppers_smooth" },
     { label: "💎 Premium",      callback: "cat:poppers_premium" },
   ],
-
-  // Poppers subgroups (₱700 each). Items can appear in multiple groups.
+  // All poppers ₱700; items can appear in multiple groups
   poppers_fast: [
     { label: "Rush Ultra Strong (Yellow) — ₱700", callback: "amt:Rush Ultra Strong (Yellow)" },
     { label: "Iron Horse — ₱700",                 callback: "amt:Iron Horse" },
-    { label: "Jungle Juice Platinum — ₱700",      callback: "amt:Jungle Juice Platinum" }, // also premium
+    { label: "Jungle Juice Platinum — ₱700",      callback: "amt:Jungle Juice Platinum" },
   ],
   poppers_smooth: [
     { label: "Blue Boy — ₱700",        callback: "amt:Blue Boy" },
     { label: "Cannabis — ₱700",        callback: "amt:Cannabis" },
     { label: "Pink Amsterdam — ₱700",  callback: "amt:Pink Amsterdam" },
-    { label: "Manscent — ₱700",        callback: "amt:Manscent" }, // also premium
+    { label: "Manscent — ₱700",        callback: "amt:Manscent" },
   ],
   poppers_premium: [
-    { label: "Jungle Juice Platinum — ₱700", callback: "amt:Jungle Juice Platinum" }, // also fast
-    { label: "Manscent — ₱700",              callback: "amt:Manscent" },              // also smooth
+    { label: "Jungle Juice Platinum — ₱700", callback: "amt:Jungle Juice Platinum" },
+    { label: "Manscent — ₱700",              callback: "amt:Manscent" },
   ],
 };
 
@@ -109,7 +104,40 @@ async function tgSendPhotoByFileId(chatId, file_id, caption = "") {
   });
 }
 
-// Always upload local QR image and show "Payment Processed" button under it
+// ───────── CONTACT ADMIN FLOW ─────────
+async function startContactAdmin(chatId) {
+  const s = getSession(chatId);
+  s.step = "contact_admin";
+  await tgSendMessage(
+    chatId,
+    "🧑‍💼 *Contact Admin*\nPlease type your message. We'll forward it to our admin now.",
+    {
+      parse_mode: "Markdown",
+      reply_markup: {
+        inline_keyboard: [[{ text: "⬅️ Back to Categories", callback_data: "contact:cancel" }]],
+      },
+    }
+  );
+}
+async function forwardCustomerMessageToAdmin(chatId, text) {
+  const s = getSession(chatId);
+  const header =
+    `✉️ *Customer message*\n` +
+    `• Chat ID: ${chatId}\n` +
+    (s.name ? `• Name: ${s.name}\n` : "") +
+    (s.phone ? `• Phone: ${s.phone}\n` : "") +
+    (s.address ? `• Address: ${s.address}\n` : "") +
+    `\n${text}`;
+
+  const r = await tgSendMessage(ADMIN_CHAT_ID, header, { parse_mode: "Markdown" });
+  const j = await r.json().catch(() => null);
+  if (j?.ok) {
+    adminMessageMap.set(j.result.message_id, { customerChatId: chatId });
+  }
+  await tgSendMessage(chatId, "✅ Sent to admin. We’ll reply here as soon as possible.");
+}
+
+// ───────── QR (with Payment button + Contact Admin button) ─────────
 async function sendPaymentQR(chatId) {
   try {
     const filePath = path.join(__dirname, "public", "qrph.jpg");
@@ -121,7 +149,12 @@ async function sendPaymentQR(chatId) {
     fd.append(
       "reply_markup",
       JSON.stringify({
-        inline_keyboard: [[{ text: "💰 Payment Processed", callback_data: "order:confirm" }]],
+        inline_keyboard: [
+          [
+            { text: "💰 Payment Processed", callback_data: "order:confirm" },
+            { text: "🧑‍💼 Contact Admin",  callback_data: "contact:admin"  },
+          ],
+        ],
       })
     );
     fd.append("photo", new Blob([buf], { type: "image/jpeg" }), "qrph.jpg");
@@ -158,14 +191,14 @@ async function reverseGeocode(lat, lon) {
   try {
     const r = await fetchFn(
       `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=18&addressdetails=1`,
-      { headers: { "User-Agent": "MrsEyesBot/1.0" } }
+      { headers: { "User-Agent": "YeloSpotBot/1.0" } }
     );
     const j = await r.json();
     return j.display_name || `${lat}, ${lon}`;
   } catch { return `${lat}, ${lon}`; }
 }
 
-// ───────── KEYBOARDS ─────────
+// ───────── KEYBOARDS (with persistent Contact Admin) ─────────
 function buildCategoryKeyboard() {
   return {
     inline_keyboard: [
@@ -175,6 +208,9 @@ function buildCategoryKeyboard() {
       ],
       [
         { text: "🧪 Poppers", callback_data: "cat:poppers" },
+      ],
+      [
+        { text: "🧑‍💼 Contact Admin", callback_data: "contact:admin" },
       ],
     ],
   };
@@ -192,6 +228,7 @@ function buildAmountKeyboard(s) {
     { text: "🧾 View Cart",  callback_data: "cart:view" },
   ]);
   inline_keyboard.push([{ text: "✅ Checkout", callback_data: "cart:checkout" }]);
+  inline_keyboard.push([{ text: "🧑‍💼 Contact Admin", callback_data: "contact:admin" }]); // persistent
   return { inline_keyboard };
 }
 
@@ -206,7 +243,7 @@ function adminPanelKeyboard() {
   };
 }
 async function openAdminCenter() {
-  return tgSendMessage(ADMIN_CHAT_ID, "👑 *Admin Center*", {
+  return tgSendMessage(ADMIN_CHAT_ID, "👑 *Admin Center — Yelo🟡Spot*", {
     parse_mode: "Markdown",
     reply_markup: adminPanelKeyboard(),
   });
@@ -269,6 +306,37 @@ async function handleCallbackQuery(cbq) {
   const data = cbq.data;
   const s = getSession(chatId);
 
+  // TERMS & CONDITIONS
+  if (data === "terms:agree") {
+    s.step = "ordering";
+    await tgEditMessageText(chatId, msgId, "✅ Thank you for agreeing. Let's begin!", {
+      reply_markup: buildCategoryKeyboard(),
+    });
+    return;
+  }
+  if (data === "terms:decline") {
+    await tgEditMessageText(
+      chatId,
+      msgId,
+      "❌ You must be at least 18 years old and agree to the Terms & Conditions to continue.\nType /start again if you change your mind."
+    );
+    sessions.delete(chatId);
+    return;
+  }
+
+  // CONTACT ADMIN
+  if (data === "contact:admin") {
+    await startContactAdmin(chatId);
+    return;
+  }
+  if (data === "contact:cancel") {
+    s.step = "ordering";
+    await tgEditMessageText(chatId, msgId, "📂 Back to Categories", {
+      reply_markup: buildCategoryKeyboard(),
+    });
+    return;
+  }
+
   // ADMIN CALLBACKS
   if (data.startsWith("admin:")) {
     if (chatId !== ADMIN_CHAT_ID) { await tgSendMessage(chatId, "⛔ Unauthorized."); return; }
@@ -276,7 +344,7 @@ async function handleCallbackQuery(cbq) {
     switch (action) {
       case "toggle":
         SHOP_OPEN = !SHOP_OPEN;
-        await tgEditMessageText(chatId, msgId, "👑 *Admin Center*", {
+        await tgEditMessageText(chatId, msgId, "👑 *Admin Center — Yelo🟡Spot*", {
           parse_mode: "Markdown",
           reply_markup: adminPanelKeyboard(),
         });
@@ -340,24 +408,40 @@ async function handleCallbackQuery(cbq) {
 
   if (data.startsWith("cat:")) {
     s.category = data.slice(4); // sachet | syringe | poppers | poppers_fast | ...
-    // If top-level poppers selected, it shows subgroups; otherwise list items
-    const text = s.category === "poppers" ? "🧪 Poppers — choose a style 👇" : `🧊 ${s.category} selected`;
-    await tgEditMessageText(chatId, msgId, text, { reply_markup: s.category === "poppers" ? { inline_keyboard: [[
-      { text: "⚡ Fast-acting",  callback_data: "cat:poppers_fast" },
-      { text: "🌿 Smooth blend", callback_data: "cat:poppers_smooth" },
-    ],[
-      { text: "💎 Premium",      callback_data: "cat:poppers_premium" },
-    ],[
-      { text: "📂 Categories",   callback_data: "cat:menu" },
-    ]]} : buildAmountKeyboard(s) });
+    const text = s.category === "poppers"
+      ? "🧪 Poppers — choose a style 👇"
+      : `🧊 ${s.category} selected`;
+    await tgEditMessageText(
+      chatId,
+      msgId,
+      text,
+      s.category === "poppers"
+        ? {
+            reply_markup: {
+              inline_keyboard: [
+                [
+                  { text: "⚡ Fast-acting",  callback_data: "cat:poppers_fast" },
+                  { text: "🌿 Smooth blend", callback_data: "cat:poppers_smooth" },
+                ],
+                [
+                  { text: "💎 Premium",      callback_data: "cat:poppers_premium" },
+                ],
+                [
+                  { text: "📂 Categories",   callback_data: "cat:menu" },
+                  { text: "🧑‍💼 Contact Admin", callback_data: "contact:admin" },
+                ],
+              ],
+            },
+          }
+        : { reply_markup: buildAmountKeyboard(s) }
+    );
     return;
   }
 
   if (data.startsWith("amt:")) {
-    const amount = data.slice(4);         // could be a peso amount or a poppers brand label
+    const amount = data.slice(4);         // peso amount or poppers brand label
     ensureCart(s);
     s.selectedAmount = amount;
-    // For Poppers, save human-friendly amount as label "₱700 • <brand>"
     const itemLabel = (s.category?.startsWith("poppers"))
       ? `₱700 • ${amount}`
       : amount;
@@ -366,7 +450,7 @@ async function handleCallbackQuery(cbq) {
     await tgEditMessageText(
       chatId, msgId,
       `🧊 ${s.category} • Select more or Checkout`,
-      { reply_markup: s.category?.startsWith("poppers") ? buildAmountKeyboard(s) : buildAmountKeyboard(s) }
+      { reply_markup: buildAmountKeyboard(s) }
     );
     return;
   }
@@ -421,26 +505,7 @@ async function handleMessage(msg) {
     return;
   }
 
-  // Admin flows
-  if (text === "/admin") {
-    if (chatId !== ADMIN_CHAT_ID) return tgSendMessage(chatId, "⛔ This command is for admin only.");
-    await openAdminCenter();
-    return;
-  }
-  if (text === "/open")  { SHOP_OPEN = true;  return tgSendMessage(chatId, "🟢 Shop is now OPEN."); }
-  if (text === "/close") { SHOP_OPEN = false; return tgSendMessage(chatId, "🔴 Shop is now CLOSED."); }
-
-  // Customer start
-  if (text === "/start" || text === "/restart") {
-    if (!SHOP_OPEN) return tgSendMessage(chatId, "🏪 The shop is closed.");
-    sessions.set(chatId, { lastActive: Date.now(), cart: [], status: "ordering" });
-    await tgSendMessage(chatId, "🧊 Welcome!\nChoose a product type 👇", {
-      reply_markup: buildCategoryKeyboard(),
-    });
-    return;
-  }
-
-  // Admin: typed delivery link after choosing "Send Delivery Link"
+  // Admin typed delivery link after "Send Delivery Link"
   if (chatId === ADMIN_CHAT_ID && adminState.mode === "await_delivery_link") {
     const id = adminState.deliveryOrderId;
     const o = findOrder(id);
@@ -457,7 +522,7 @@ async function handleMessage(msg) {
     return;
   }
 
-  // Admin: broadcast mode
+  // Admin broadcast
   if (chatId === ADMIN_CHAT_ID && adminState.mode === "broadcast") {
     adminState.mode = null;
     let count = 0;
@@ -470,7 +535,62 @@ async function handleMessage(msg) {
     return;
   }
 
-  // Ask name → phone
+  // /admin
+  if (text === "/admin") {
+    if (chatId !== ADMIN_CHAT_ID) return tgSendMessage(chatId, "⛔ This command is for admin only.");
+    await openAdminCenter();
+    return;
+  }
+  if (text === "/open")  { SHOP_OPEN = true;  return tgSendMessage(chatId, "🟢 Shop is now OPEN."); }
+  if (text === "/close") { SHOP_OPEN = false; return tgSendMessage(chatId, "🔴 Shop is now CLOSED."); }
+
+  // Start (Terms & Conditions gate + Yelo🟡Spot welcome)
+  if (text === "/start" || text === "/restart") {
+    if (!SHOP_OPEN) return tgSendMessage(chatId, "🏪 The shop is closed.");
+    const s0 = { lastActive: Date.now(), cart: [], step: "terms" };
+    sessions.set(chatId, s0);
+
+    const termsText = `
+👋 Welcome to *Yelo🟡Spot*!
+
+❄️ Chill deals. Fast service.  
+Before we begin, please read and agree to our Terms & Conditions:
+
+⚠️ *Terms & Conditions*  
+• You confirm that you are *18 years old and above*.  
+• You understand and accept full responsibility for your order.  
+• No refunds once the order has been confirmed.  
+• Please use responsibly and comply with all applicable laws.
+
+Tap below to proceed.
+`.trim();
+
+    await tgSendMessage(chatId, termsText, {
+      parse_mode: "Markdown",
+      reply_markup: {
+        inline_keyboard: [
+          [
+            { text: "✅ I Agree (18+)", callback_data: "terms:agree" },
+            { text: "❌ I Disagree",    callback_data: "terms:decline" },
+          ],
+          [
+            { text: "🧑‍💼 Contact Admin", callback_data: "contact:admin" },
+          ]
+        ],
+      },
+    });
+    return;
+  }
+
+  // Contact Admin typing mode
+  if (s.step === "contact_admin") {
+    if (!text) return; // ignore non-text here
+    await forwardCustomerMessageToAdmin(chatId, text);
+    s.step = "ordering"; // return to normal flow
+    return;
+  }
+
+  // Name → phone
   if (s.step === "ask_name") {
     s.name = text;
     s.step = "request_phone";
@@ -483,7 +603,7 @@ async function handleMessage(msg) {
     return;
   }
 
-  // Unknown / fallback
+  // Fallback
   await tgSendMessage(chatId, "Please use /start to begin ordering.");
 }
 
@@ -517,7 +637,7 @@ async function handleLocation(msg) {
 
   const itemsTxt = s.cart.length ? itemsToText(s.cart) : "—";
   const summary = `
-📋 *Order Summary*
+📋 *Order Summary (Yelo🟡Spot)*
 
 👤 Name: ${s.name}
 📱 Phone: ${s.phone}
@@ -530,7 +650,12 @@ ${itemsTxt}
 Scan the QR (QRPh / GCash) below, then tap *Payment Processed* and upload your proof.
 `.trim();
 
-  await tgSendMessage(chatId, summary, { parse_mode: "Markdown" });
+  await tgSendMessage(chatId, summary, {
+    parse_mode: "Markdown",
+    reply_markup: {
+      inline_keyboard: [[{ text: "🧑‍💼 Contact Admin", callback_data: "contact:admin" }]],
+    }
+  });
   await sendPaymentQR(chatId);
 }
 
@@ -565,7 +690,8 @@ async function handlePhotoOrDocument(msg) {
   s.status = "complete";
   await tgSendMessage(
     chatId,
-    "✅ Thank you! Payment screenshot received.\n🛵 Your delivery link will be sent shortly.\nPlease keep this chat open."
+    "✅ Thank you! Payment screenshot received.\n🛵 Your delivery link will be sent shortly.\nPlease keep this chat open.",
+    { reply_markup: { inline_keyboard: [[{ text: "🧑‍💼 Contact Admin", callback_data: "contact:admin" }]] } }
   );
 }
 

@@ -140,7 +140,7 @@ async function forwardCustomerMessageToAdmin(chatId, text) {
 // ───────── QR (with Payment button + Contact Admin button) ─────────
 async function sendPaymentQR(chatId) {
   try {
-    const filePath = path.join(__dirname, "public", "qrph.jpg");
+    const filePath = path.join(__dirname, "public", "gcash.jpg");
     const buf = await fs.readFile(filePath);
 
     const fd = new FormData();

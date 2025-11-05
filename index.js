@@ -27,34 +27,33 @@ const PRICE_LIST = {
     { label: "₱700 — 0.042",   callback: "amt:₱700" },
     { label: "₱1,000 — 0.056", callback: "amt:₱1000" },
     { label: "₱2,000 — Half",  callback: "amt:₱2000" },
-    { label: "₱3,800 — G",     callback: "amt:₱3800" },
+    { label: "₱3,800 — 8",     callback: "amt:₱3800" },
   ],
   syringe: [
     { label: "₱500 — 12 units",  callback: "amt:₱500" },
     { label: "₱700 — 20 units",  callback: "amt:₱700" },
     { label: "₱1,000 — 30 units",callback: "amt:₱1000" },
   ],
-  // Poppers top level
   poppers: [
     { label: "⚡ Fast-acting",  callback: "cat:poppers_fast" },
     { label: "🌿 Smooth blend", callback: "cat:poppers_smooth" },
     { label: "💎 Premium",      callback: "cat:poppers_premium" },
   ],
-  // Poppers subgroups (₱700 each). Items can appear in multiple groups.
+  // All poppers ₱700; items can appear in multiple groups
   poppers_fast: [
     { label: "Rush Ultra Strong (Yellow) — ₱700", callback: "amt:Rush Ultra Strong (Yellow)" },
     { label: "Iron Horse — ₱700",                 callback: "amt:Iron Horse" },
-    { label: "Jungle Juice Platinum — ₱700",      callback: "amt:Jungle Juice Platinum" }, // also premium
+    { label: "Jungle Juice Platinum — ₱700",      callback: "amt:Jungle Juice Platinum" },
   ],
   poppers_smooth: [
     { label: "Blue Boy — ₱700",        callback: "amt:Blue Boy" },
     { label: "Cannabis — ₱700",        callback: "amt:Cannabis" },
     { label: "Pink Amsterdam — ₱700",  callback: "amt:Pink Amsterdam" },
-    { label: "Manscent — ₱700",        callback: "amt:Manscent" }, // also premium
+    { label: "Manscent — ₱700",        callback: "amt:Manscent" },
   ],
   poppers_premium: [
-    { label: "Jungle Juice Platinum — ₱700", callback: "amt:Jungle Juice Platinum" }, // also fast
-    { label: "Manscent — ₱700",              callback: "amt:Manscent" },              // also smooth
+    { label: "Jungle Juice Platinum — ₱700", callback: "amt:Jungle Juice Platinum" },
+    { label: "Manscent — ₱700",              callback: "amt:Manscent" },
   ],
 };
 
@@ -277,8 +276,6 @@ async function listOrders(chatId) {
     await tgSendMessage(chatId, orderSummaryText(o), { reply_markup: kb });
   }
 }
-
-// Notify admin & map replies to customer
 async function notifyAdminNewOrder(order, from) {
   const text = orderSummaryText(order);
   const r = await tgSendMessage(ADMIN_CHAT_ID, text);
@@ -302,7 +299,7 @@ async function handleCallbackQuery(cbq) {
   const data = cbq.data;
   const s = getSession(chatId);
 
-  // TERMS & CONDITIONS
+  // TERMS
   if (data === "terms:agree") {
     s.step = "ordering";
     await tgEditMessageText(chatId, msgId, "✅ Thank you for agreeing. Let's begin!", {
@@ -383,6 +380,10 @@ async function handleCallbackQuery(cbq) {
         await tgSendMessage(o.customerChatId, "❌ Your order has been *canceled*. If this is a mistake, please /start again.", { parse_mode: "Markdown" });
         break;
       }
+      case "broadcast":
+        adminState.mode = "broadcast";
+        await tgSendMessage(chatId, "📢 Send the message to broadcast to all recent chats.");
+        break;
     }
     return;
   }
@@ -526,14 +527,12 @@ async function handleMessage(msg) {
     return;
   }
 
-  // Admin command
-  if (text === "/admin") {
-    if (chatId !== ADMIN_CHAT_ID) return tgSendMessage(chatId, "⛔ This command is for admin only.");
-    await openAdminCenter();
-    return;
-  }
-  if (text === "/open")  { SHOP_OPEN = true;  return tgSendMessage(chatId, "🟢 Shop is now OPEN."); }
-  if (text === "/close") { SHOP_OPEN = false; return tgSendMessage(chatId, "🔴 Shop is now CLOSED."); }
+  // Admin commands
+  if (text === "/admin")      { if (chatId !== ADMIN_CHAT_ID) return tgSendMessage(chatId, "⛔ For admin only."); await openAdminCenter(); return; }
+  if (text === "/open")       { if (chatId !== ADMIN_CHAT_ID) return; SHOP_OPEN = true;  return tgSendMessage(chatId, "🟢 Shop is now OPEN."); }
+  if (text === "/close")      { if (chatId !== ADMIN_CHAT_ID) return; SHOP_OPEN = false; return tgSendMessage(chatId, "🔴 Shop is now CLOSED."); }
+  if (text === "/orders")     { if (chatId !== ADMIN_CHAT_ID) return; await listOrders(chatId); return; }
+  if (text === "/broadcast")  { if (chatId !== ADMIN_CHAT_ID) return; adminState.mode = "broadcast"; return tgSendMessage(chatId, "📢 Send the message to broadcast to all recent chats."); }
 
   // Public commands (menu support)
   if (text === "/menu") {
@@ -748,7 +747,7 @@ app.listen(PORT, async () => {
     console.warn("⚠️ HOST_URL not set — please set webhook manually.");
   }
 
-  // ---- PERSISTENT MENU COMMANDS ----
+  // ---- PUBLIC MENU COMMANDS ----
   try {
     await fetchFn(`${TELEGRAM_API}/setMyCommands`, {
       method: "POST",
@@ -764,12 +763,33 @@ app.listen(PORT, async () => {
           { command: "help",     description: "How to use Yelo🟡Spot" },
           { command: "faq",      description: "FAQs" },
           { command: "status",   description: "Check order status" },
-          // NOTE: We keep /admin hidden from menu; still works if admin types it.
         ],
+        scope: { type: "all_private_chats" },
       }),
     });
-    console.log("✅ Telegram menu commands registered.");
+    console.log("✅ Public menu commands registered.");
   } catch (e) {
-    console.error("❌ Failed to set menu commands:", e);
+    console.error("❌ Failed to set public menu commands:", e);
+  }
+
+  // ---- ADMIN-ONLY MENU IN ADMIN CHAT ----
+  try {
+    await fetchFn(`${TELEGRAM_API}/setMyCommands`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        commands: [
+          { command: "admin",     description: "Open Admin Center" },
+          { command: "open",      description: "Open shop" },
+          { command: "close",     description: "Close shop" },
+          { command: "orders",    description: "List recent orders" },
+          { command: "broadcast", description: "Broadcast a message" },
+        ],
+        scope: { type: "chat", chat_id: ADMIN_CHAT_ID },
+      }),
+    });
+    console.log("✅ Admin menu commands registered for admin chat.");
+  } catch (e) {
+    console.error("❌ Failed to set admin menu commands:", e);
   }
 });

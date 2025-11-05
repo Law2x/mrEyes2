@@ -9,50 +9,77 @@ import { fileURLToPath } from "url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// ────────── CONFIG ──────────
+// ───────── CONFIG ─────────
 const BOT_TOKEN = process.env.BOT_TOKEN;
 const ADMIN_CHAT_ID = Number(process.env.ADMIN_CHAT_ID || 0);
 const HOST_URL = process.env.HOST_URL;
 const PORT = process.env.PORT || 3000;
+
 if (!BOT_TOKEN) throw new Error("BOT_TOKEN missing.");
 if (!ADMIN_CHAT_ID) console.warn("⚠️ ADMIN_CHAT_ID missing or 0.");
 
 const TELEGRAM_API = `https://api.telegram.org/bot${BOT_TOKEN}`;
 
-// ────────── PRICE LIST (UPDATED) ──────────
+// ───────── PRICE LIST ─────────
+// Poppers structured into style subgroups; items can appear in multiple groups.
+// All poppers priced ₱700 (shown in label).
 const PRICE_LIST = {
   sachet: [
-    { label: "₱500 — 0.028",  callback: "amt:₱500"  },
-    { label: "₱700 — 0.042",  callback: "amt:₱700"  },
-    { label: "₱1,000 — 0.056",callback: "amt:₱1000" },
-    { label: "₱2,000 — Half", callback: "amt:₱2000" },
-    { label: "₱3,800 — G",    callback: "amt:₱3800" },
+    { label: "₱500 — 0.028",   callback: "amt:₱500" },
+    { label: "₱700 — 0.042",   callback: "amt:₱700" },
+    { label: "₱1,000 — 0.056", callback: "amt:₱1000" },
+    { label: "₱2,000 — Half",  callback: "amt:₱2000" },
+    { label: "₱3,800 — 8",     callback: "amt:₱3800" },
   ],
   syringe: [
-    { label: "₱500 — 12 units",  callback: "amt:₱500"  },
-    { label: "₱700 — 20 units",  callback: "amt:₱700"  },
+    { label: "₱500 — 12 units",  callback: "amt:₱500" },
+    { label: "₱700 — 20 units",  callback: "amt:₱700" },
     { label: "₱1,000 — 30 units",callback: "amt:₱1000" },
+  ],
+
+  // Poppers top-level (style groups)
+  poppers: [
+    { label: "⚡ Fast-acting",  callback: "cat:poppers_fast" },
+    { label: "🌿 Smooth blend", callback: "cat:poppers_smooth" },
+    { label: "💎 Premium",      callback: "cat:poppers_premium" },
+  ],
+
+  // Poppers subgroups (₱700 each). Items can appear in multiple groups.
+  poppers_fast: [
+    { label: "Rush Ultra Strong (Yellow) — ₱700", callback: "amt:Rush Ultra Strong (Yellow)" },
+    { label: "Iron Horse — ₱700",                 callback: "amt:Iron Horse" },
+    { label: "Jungle Juice Platinum — ₱700",      callback: "amt:Jungle Juice Platinum" }, // also premium
+  ],
+  poppers_smooth: [
+    { label: "Blue Boy — ₱700",        callback: "amt:Blue Boy" },
+    { label: "Cannabis — ₱700",        callback: "amt:Cannabis" },
+    { label: "Pink Amsterdam — ₱700",  callback: "amt:Pink Amsterdam" },
+    { label: "Manscent — ₱700",        callback: "amt:Manscent" }, // also premium
+  ],
+  poppers_premium: [
+    { label: "Jungle Juice Platinum — ₱700", callback: "amt:Jungle Juice Platinum" }, // also fast
+    { label: "Manscent — ₱700",              callback: "amt:Manscent" },              // also smooth
   ],
 };
 
-// ────────── STATE ──────────
+// ───────── STATE ─────────
 let SHOP_OPEN = true;
-const sessions = new Map();               // chatId -> {cart, step, ...}
+const sessions = new Map();               // chatId -> { cart, step, ... }
 const adminMessageMap = new Map();        // adminMsgId -> { customerChatId }
-const orders = [];                         // in-memory orders
+const orders = [];                        // in-memory orders
 let nextOrderId = 1;
 
 const adminState = {
-  mode: null,               // 'broadcast' | 'await_delivery_link'
-  deliveryOrderId: null,    // used when awaiting link
+  mode: null,            // 'broadcast' | 'await_delivery_link'
+  deliveryOrderId: null,
 };
 
-// ────────── EXPRESS ──────────
+// ───────── EXPRESS ─────────
 const app = express();
 app.use(express.json());
 app.use("/static", express.static("public"));
 
-// ────────── TG HELPERS ──────────
+// ───────── TG HELPERS ─────────
 async function tgSendMessage(chatId, text, extra = {}) {
   return fetchFn(`${TELEGRAM_API}/sendMessage`, {
     method: "POST",
@@ -82,7 +109,7 @@ async function tgSendPhotoByFileId(chatId, file_id, caption = "") {
   });
 }
 
-// Always upload local QR image and stick the "Payment Processed" button under it
+// Always upload local QR image and show "Payment Processed" button under it
 async function sendPaymentQR(chatId) {
   try {
     const filePath = path.join(__dirname, "public", "qrph.jpg");
@@ -113,7 +140,7 @@ async function sendPaymentQR(chatId) {
   }
 }
 
-// ────────── UTIL ──────────
+// ───────── UTIL ─────────
 function getSession(chatId) {
   const now = Date.now();
   let s = sessions.get(chatId);
@@ -138,13 +165,16 @@ async function reverseGeocode(lat, lon) {
   } catch { return `${lat}, ${lon}`; }
 }
 
-// ────────── KEYBOARDS ──────────
+// ───────── KEYBOARDS ─────────
 function buildCategoryKeyboard() {
   return {
     inline_keyboard: [
       [
-        { text: "💧 Sachet", callback_data: "cat:sachet" },
+        { text: "💧 Sachet",  callback_data: "cat:sachet" },
         { text: "💉 Syringe", callback_data: "cat:syringe" },
+      ],
+      [
+        { text: "🧪 Poppers", callback_data: "cat:poppers" },
       ],
     ],
   };
@@ -153,19 +183,19 @@ function buildAmountKeyboard(s) {
   const inline_keyboard = [];
   const list = PRICE_LIST[s.category] || [];
   for (let i = 0; i < list.length; i += 2) {
-    inline_keyboard.push(
-      list.slice(i, i + 2).map((p) => ({ text: p.label, callback_data: p.callback }))
-    );
+    inline_keyboard.push(list.slice(i, i + 2).map(p => ({
+      text: p.label, callback_data: p.callback
+    })));
   }
   inline_keyboard.push([
     { text: "📂 Categories", callback_data: "cat:menu" },
-    { text: "🧾 View Cart", callback_data: "cart:view" },
+    { text: "🧾 View Cart",  callback_data: "cart:view" },
   ]);
   inline_keyboard.push([{ text: "✅ Checkout", callback_data: "cart:checkout" }]);
   return { inline_keyboard };
 }
 
-// ────────── ADMIN CENTER (Telegram) ──────────
+// ───────── ADMIN CENTER ─────────
 function adminPanelKeyboard() {
   return {
     inline_keyboard: [
@@ -181,13 +211,13 @@ async function openAdminCenter() {
     reply_markup: adminPanelKeyboard(),
   });
 }
-function findOrder(id) { return orders.find((o) => o.id === id); }
+function findOrder(id) { return orders.find(o => o.id === id); }
 function orderSummaryText(o) {
   const lines = [
     `🧾 Order #${o.id}`,
     "",
-    `👤 ${o.name}`,
-    `📱 ${o.phone}`,
+    `👤 ${o.name || "N/A"}`,
+    `📱 ${o.phone || "N/A"}`,
     `📍 ${o.address || "N/A"}`,
     "",
     "🧺 Items:",
@@ -200,35 +230,29 @@ function orderSummaryText(o) {
   return lines.join("\n");
 }
 async function listOrders(chatId) {
-  if (!orders.length) {
-    await tgSendMessage(chatId, "— No orders yet —");
-    return;
-  }
+  if (!orders.length) return tgSendMessage(chatId, "— No orders yet —");
   const latest = [...orders].slice(-10).reverse();
   for (const o of latest) {
     const kb = {
       inline_keyboard: [
-        [{ text: "➡️ View", callback_data: `admin:order:${o.id}` }],
+        [{ text: "➡️ View",               callback_data: `admin:order:${o.id}` }],
         [{ text: "🚚 Send Delivery Link", callback_data: `admin:sendlink:${o.id}` }],
-        [{ text: "✅ Mark Completed", callback_data: `admin:done:${o.id}` }],
-        [{ text: "❌ Cancel", callback_data: `admin:cancel:${o.id}` }],
+        [{ text: "✅ Mark Completed",     callback_data: `admin:done:${o.id}` }],
+        [{ text: "❌ Cancel",             callback_data: `admin:cancel:${o.id}` }],
       ],
     };
     await tgSendMessage(chatId, orderSummaryText(o), { reply_markup: kb });
   }
 }
 
-// ────────── ADMIN NOTIFY + REPLY BRIDGE ──────────
+// Notify admin & map replies to customer
 async function notifyAdminNewOrder(order, from) {
   const text = orderSummaryText(order);
   const r = await tgSendMessage(ADMIN_CHAT_ID, text);
   const j = await r.json().catch(() => null);
-  if (j?.ok) {
-    adminMessageMap.set(j.result.message_id, { customerChatId: from.id });
-  }
-  if (order.coords) {
-    await tgSendLocation(ADMIN_CHAT_ID, order.coords.latitude, order.coords.longitude);
-  }
+  if (j?.ok) adminMessageMap.set(j.result.message_id, { customerChatId: from.id });
+
+  if (order.coords) await tgSendLocation(ADMIN_CHAT_ID, order.coords.latitude, order.coords.longitude);
   if (order.paymentProof) {
     await tgSendPhotoByFileId(
       ADMIN_CHAT_ID,
@@ -238,7 +262,7 @@ async function notifyAdminNewOrder(order, from) {
   }
 }
 
-// ────────── CALLBACKS ──────────
+// ───────── CALLBACKS ─────────
 async function handleCallbackQuery(cbq) {
   const chatId = cbq.message.chat.id;
   const msgId = cbq.message.message_id;
@@ -247,20 +271,15 @@ async function handleCallbackQuery(cbq) {
 
   // ADMIN CALLBACKS
   if (data.startsWith("admin:")) {
-    if (chatId !== ADMIN_CHAT_ID) {
-      await tgSendMessage(chatId, "⛔ Unauthorized.");
-      return;
-    }
-    const [, action, arg] = data.split(":"); // admin:action[:id]
+    if (chatId !== ADMIN_CHAT_ID) { await tgSendMessage(chatId, "⛔ Unauthorized."); return; }
+    const [, action, arg] = data.split(":");
     switch (action) {
       case "toggle":
         SHOP_OPEN = !SHOP_OPEN;
-        await tgEditMessageText(
-          chatId,
-          msgId,
-          "👑 *Admin Center*",
-          { parse_mode: "Markdown", reply_markup: adminPanelKeyboard() }
-        );
+        await tgEditMessageText(chatId, msgId, "👑 *Admin Center*", {
+          parse_mode: "Markdown",
+          reply_markup: adminPanelKeyboard(),
+        });
         break;
       case "orders":
         await tgSendMessage(chatId, "🧾 Recent orders:");
@@ -273,20 +292,18 @@ async function handleCallbackQuery(cbq) {
         const kb = {
           inline_keyboard: [
             [{ text: "🚚 Send Delivery Link", callback_data: `admin:sendlink:${o.id}` }],
-            [{ text: "✅ Mark Completed", callback_data: `admin:done:${o.id}` }],
-            [{ text: "❌ Cancel", callback_data: `admin:cancel:${o.id}` }],
+            [{ text: "✅ Mark Completed",     callback_data: `admin:done:${o.id}` }],
+            [{ text: "❌ Cancel",             callback_data: `admin:cancel:${o.id}` }],
           ],
         };
         await tgSendMessage(chatId, orderSummaryText(o), { reply_markup: kb });
         break;
       }
-      case "sendlink": {
-        const id = Number(arg);
+      case "sendlink":
         adminState.mode = "await_delivery_link";
-        adminState.deliveryOrderId = id;
-        await tgSendMessage(chatId, `✍️ Reply with the delivery/tracking link for Order #${id}.`);
+        adminState.deliveryOrderId = Number(arg);
+        await tgSendMessage(chatId, `✍️ Reply with the delivery/tracking link for Order #${arg}.`);
         break;
-      }
       case "done": {
         const id = Number(arg);
         const o = findOrder(id);
@@ -309,11 +326,8 @@ async function handleCallbackQuery(cbq) {
     return;
   }
 
-  // CUSTOMER CALLBACKS (block if closed)
-  if (!SHOP_OPEN) {
-    await tgSendMessage(chatId, "🏪 The shop is closed.");
-    return;
-  }
+  // CUSTOMER CALLBACKS (guard if closed)
+  if (!SHOP_OPEN) { await tgSendMessage(chatId, "🏪 The shop is closed."); return; }
 
   if (data === "cat:menu") {
     delete s.category;
@@ -325,24 +339,34 @@ async function handleCallbackQuery(cbq) {
   }
 
   if (data.startsWith("cat:")) {
-    s.category = data.slice(4);
-    await tgEditMessageText(chatId, msgId, `🧊 ${s.category} selected`, {
-      reply_markup: buildAmountKeyboard(s),
-    });
+    s.category = data.slice(4); // sachet | syringe | poppers | poppers_fast | ...
+    // If top-level poppers selected, it shows subgroups; otherwise list items
+    const text = s.category === "poppers" ? "🧪 Poppers — choose a style 👇" : `🧊 ${s.category} selected`;
+    await tgEditMessageText(chatId, msgId, text, { reply_markup: s.category === "poppers" ? { inline_keyboard: [[
+      { text: "⚡ Fast-acting",  callback_data: "cat:poppers_fast" },
+      { text: "🌿 Smooth blend", callback_data: "cat:poppers_smooth" },
+    ],[
+      { text: "💎 Premium",      callback_data: "cat:poppers_premium" },
+    ],[
+      { text: "📂 Categories",   callback_data: "cat:menu" },
+    ]]} : buildAmountKeyboard(s) });
     return;
   }
 
   if (data.startsWith("amt:")) {
-    const amount = data.slice(4);
+    const amount = data.slice(4);         // could be a peso amount or a poppers brand label
     ensureCart(s);
     s.selectedAmount = amount;
-    s.cart.push({ category: s.category, amount });
-    await tgSendMessage(chatId, `🛒 Added: ${s.category} — ${amount}`);
+    // For Poppers, save human-friendly amount as label "₱700 • <brand>"
+    const itemLabel = (s.category?.startsWith("poppers"))
+      ? `₱700 • ${amount}`
+      : amount;
+    s.cart.push({ category: s.category, amount: itemLabel });
+    await tgSendMessage(chatId, `🛒 Added: ${s.category} — ${itemLabel}`);
     await tgEditMessageText(
-      chatId,
-      msgId,
+      chatId, msgId,
       `🧊 ${s.category} • Select more or Checkout`,
-      { reply_markup: buildAmountKeyboard(s) }
+      { reply_markup: s.category?.startsWith("poppers") ? buildAmountKeyboard(s) : buildAmountKeyboard(s) }
     );
     return;
   }
@@ -367,9 +391,8 @@ async function handleCallbackQuery(cbq) {
   }
 
   if (data === "order:received") {
-    // sent after admin shared delivery link
     s.status = "delivered";
-    const o = orders.find((x) => x.customerChatId === chatId && x.status !== "canceled");
+    const o = orders.find(x => x.customerChatId === chatId && x.status !== "canceled");
     if (o) o.status = "delivered";
     await tgSendMessage(chatId, "✅ Thank you for confirming! We’re glad your order arrived safely. 💙");
     await tgSendMessage(ADMIN_CHAT_ID, `📦 Customer *${s.name || chatId}* marked the order as *Received*.`, { parse_mode: "Markdown" });
@@ -377,13 +400,13 @@ async function handleCallbackQuery(cbq) {
   }
 }
 
-// ────────── MESSAGE HANDLER ──────────
+// ───────── MESSAGES ─────────
 async function handleMessage(msg) {
   const chatId = msg.chat.id;
   const text = (msg.text || "").trim();
   const s = getSession(chatId);
 
-  // ADMIN: reply-bridge (replying to order summary in admin chat)
+  // Admin reply-bridge
   if (chatId === ADMIN_CHAT_ID && msg.reply_to_message) {
     const info = adminMessageMap.get(msg.reply_to_message.message_id);
     if (!info) return tgSendMessage(chatId, "⚠️ Cannot map reply to a customer.");
@@ -398,18 +421,32 @@ async function handleMessage(msg) {
     return;
   }
 
-  // ADMIN: receive typed delivery link after pressing "Send Delivery Link"
+  // Admin flows
+  if (text === "/admin") {
+    if (chatId !== ADMIN_CHAT_ID) return tgSendMessage(chatId, "⛔ This command is for admin only.");
+    await openAdminCenter();
+    return;
+  }
+  if (text === "/open")  { SHOP_OPEN = true;  return tgSendMessage(chatId, "🟢 Shop is now OPEN."); }
+  if (text === "/close") { SHOP_OPEN = false; return tgSendMessage(chatId, "🔴 Shop is now CLOSED."); }
+
+  // Customer start
+  if (text === "/start" || text === "/restart") {
+    if (!SHOP_OPEN) return tgSendMessage(chatId, "🏪 The shop is closed.");
+    sessions.set(chatId, { lastActive: Date.now(), cart: [], status: "ordering" });
+    await tgSendMessage(chatId, "🧊 Welcome!\nChoose a product type 👇", {
+      reply_markup: buildCategoryKeyboard(),
+    });
+    return;
+  }
+
+  // Admin: typed delivery link after choosing "Send Delivery Link"
   if (chatId === ADMIN_CHAT_ID && adminState.mode === "await_delivery_link") {
     const id = adminState.deliveryOrderId;
     const o = findOrder(id);
-    if (!o) {
-      adminState.mode = null;
-      adminState.deliveryOrderId = null;
-      return tgSendMessage(chatId, "⚠️ Order not found.");
-    }
     adminState.mode = null;
     adminState.deliveryOrderId = null;
-
+    if (!o) return tgSendMessage(chatId, "⚠️ Order not found.");
     await tgSendMessage(
       o.customerChatId,
       `🛵 Delivery link:\n${text}\n\nTap below once you receive your order.`,
@@ -420,7 +457,7 @@ async function handleMessage(msg) {
     return;
   }
 
-  // ADMIN: broadcast
+  // Admin: broadcast mode
   if (chatId === ADMIN_CHAT_ID && adminState.mode === "broadcast") {
     adminState.mode = null;
     let count = 0;
@@ -433,27 +470,7 @@ async function handleMessage(msg) {
     return;
   }
 
-  // /admin command panel
-  if (text === "/admin") {
-    if (chatId !== ADMIN_CHAT_ID) return tgSendMessage(chatId, "⛔ This command is for admin only.");
-    await openAdminCenter();
-    return;
-  }
-
-  // Admin quick toggles
-  if (text === "/open")  { SHOP_OPEN = true;  return tgSendMessage(chatId, "🟢 Shop is now OPEN."); }
-  if (text === "/close") { SHOP_OPEN = false; return tgSendMessage(chatId, "🔴 Shop is now CLOSED."); }
-
-  // Customer flow
-  if (text === "/start" || text === "/restart") {
-    if (!SHOP_OPEN) return tgSendMessage(chatId, "🏪 The shop is closed.");
-    sessions.set(chatId, { lastActive: Date.now(), cart: [], status: "ordering" });
-    await tgSendMessage(chatId, "🧊 Welcome!\nChoose a product type 👇", {
-      reply_markup: buildCategoryKeyboard(),
-    });
-    return;
-  }
-
+  // Ask name → phone
   if (s.step === "ask_name") {
     s.name = text;
     s.step = "request_phone";
@@ -466,10 +483,11 @@ async function handleMessage(msg) {
     return;
   }
 
+  // Unknown / fallback
   await tgSendMessage(chatId, "Please use /start to begin ordering.");
 }
 
-// ────────── CONTACT (phone) ──────────
+// ───────── CONTACT (phone) ─────────
 async function handleContact(msg) {
   const chatId = msg.chat.id;
   if (!SHOP_OPEN) return tgSendMessage(chatId, "🏪 The shop is closed.");
@@ -485,7 +503,7 @@ async function handleContact(msg) {
   });
 }
 
-// ────────── LOCATION (address) ──────────
+// ───────── LOCATION (address & summary) ─────────
 async function handleLocation(msg) {
   const chatId = msg.chat.id;
   if (!SHOP_OPEN) return tgSendMessage(chatId, "🏪 The shop is closed.");
@@ -516,7 +534,7 @@ Scan the QR (QRPh / GCash) below, then tap *Payment Processed* and upload your p
   await sendPaymentQR(chatId);
 }
 
-// ────────── PAYMENT PROOF (photo/document) ──────────
+// ───────── PAYMENT PROOF (photo/document) ─────────
 async function handlePhotoOrDocument(msg) {
   const chatId = msg.chat.id;
   if (!SHOP_OPEN) return tgSendMessage(chatId, "🏪 The shop is closed.");
@@ -543,7 +561,7 @@ async function handlePhotoOrDocument(msg) {
   // Notify admin
   await notifyAdminNewOrder(order, msg.from);
 
-  // Ack customer
+  // Acknowledge customer
   s.status = "complete";
   await tgSendMessage(
     chatId,
@@ -551,7 +569,7 @@ async function handlePhotoOrDocument(msg) {
   );
 }
 
-// ────────── WEBHOOK ──────────
+// ───────── WEBHOOK ─────────
 const pathWebhook = `/telegraf/${BOT_TOKEN}`;
 app.post(pathWebhook, async (req, res) => {
   const u = req.body;
@@ -571,7 +589,7 @@ app.post(pathWebhook, async (req, res) => {
   res.sendStatus(200);
 });
 
-// ────────── HEALTH + STARTUP ──────────
+// ───────── HEALTH + STARTUP ─────────
 app.get("/health", (_, r) =>
   r.json({ ok: true, shop_open: SHOP_OPEN, active_sessions: sessions.size, orders: orders.length })
 );
@@ -587,9 +605,7 @@ app.listen(PORT, async () => {
         body: JSON.stringify({ url: webhook }),
       });
       console.log(`✅ Webhook set to: ${webhook}`);
-    } catch (err) {
-      console.error("❌ Failed to set webhook:", err);
-    }
+    } catch (err) { console.error("❌ Failed to set webhook:", err); }
   } else {
     console.warn("⚠️ HOST_URL not set — please set webhook manually.");
   }

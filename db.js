@@ -2,13 +2,11 @@
 import pkgPg from "pg";
 const { Pool } = pkgPg;
 
-// ---- CONFIG ----
-const pool = new Pool({
+export const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: process.env.PGSSLMODE ? { rejectUnauthorized: false } : undefined,
 });
 
-// ---- INIT ----
 export async function dbInit() {
   await pool.query(`
     create table if not exists orders (
@@ -21,8 +19,8 @@ export async function dbInit() {
       coords_lon double precision,
       items jsonb not null default '[]',
       payment_proof text,
-      status text not null default 'paid',         -- 'paid' | 'out_for_delivery' | 'completed' | 'canceled'
-      status_stage int not null default 0,         -- -1=canceled, 0=preparing, 1=out, 2=delivered
+      status text not null default 'paid',
+      status_stage int not null default 0,
       delivery_link text,
       created_at timestamptz not null default now(),
       updated_at timestamptz not null default now()
@@ -31,7 +29,6 @@ export async function dbInit() {
   `);
 }
 
-// ---- HELPERS ----
 const mapRow = (r) => ({
   id: r.id,
   customerChatId: r.customer_chat_id,
@@ -49,10 +46,7 @@ const mapRow = (r) => ({
   updatedAt: r.updated_at,
 });
 
-// ---- CRUD ----
-export async function createOrder({
-  customerChatId, name, phone, address, coords, items, paymentProof
-}) {
+export async function createOrder({ customerChatId, name, phone, address, coords, items, paymentProof }) {
   const res = await pool.query(
     `insert into orders
       (customer_chat_id, name, phone, address, coords_lat, coords_lon, items, payment_proof, status, status_stage)
@@ -98,7 +92,6 @@ export async function getOrderById(id) {
 }
 
 export async function updateOrderStage(id, stage) {
-  // stage: -1, 0, 1, 2
   await pool.query(
     `update orders set
        status_stage=$1,

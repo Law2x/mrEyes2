@@ -14,7 +14,7 @@ const BOT_TOKEN = process.env.BOT_TOKEN;
 const HOST_URL  = process.env.HOST_URL;
 const PORT      = process.env.PORT || 3000;
 
-// Multiple admins: comma-separated list in env, e.g. ADMIN_IDS=123,456
+// One or more admins (comma-separated). For single admin, set one ID only.
 const ADMIN_IDS = (process.env.ADMIN_IDS || "")
   .split(",")
   .map(s => Number(s.trim()))
@@ -28,16 +28,16 @@ const TELEGRAM_API = `https://api.telegram.org/bot${BOT_TOKEN}`;
 // ───────── PRICE LIST ─────────
 const PRICE_LIST = {
   sachet: [
-    { label: "₱500 — 0.028",   callback: "amt:₱500" },
-    { label: "₱700 — 0.042",   callback: "amt:₱700" },
-    { label: "₱1,000 — 0.056", callback: "amt:₱1000" },
-    { label: "₱2,000 — Half",  callback: "amt:₱2000" },
-    { label: "₱3,800 — G",     callback: "amt:₱3800" },
+    { label: "₱500 — 0.028",   callback: "amt:₱500 — 0.028" },
+    { label: "₱700 — 0.042",   callback: "amt:₱700 — 0.042" },
+    { label: "₱1,000 — 0.056", callback: "amt:₱1,000 — 0.056" },
+    { label: "₱2,000 — Half",  callback: "amt:₱2,000 — Half" },
+    { label: "₱3,800 — G",     callback: "amt:₱3,800 — 8" },
   ],
   syringe: [
-    { label: "₱500 — 12 units",  callback: "amt:₱500" },
-    { label: "₱700 — 20 units",  callback: "amt:₱700" },
-    { label: "₱1,000 — 30 units",callback: "amt:₱1000" },
+    { label: "₱500 — 12 units",   callback: "amt:₱500 — 12 units" },
+    { label: "₱700 — 20 units",   callback: "amt:₱700 — 20 units" },
+    { label: "₱1,000 — 30 units", callback: "amt:₱1,000 — 30 units" },
   ],
   // Poppers top-level
   poppers: [
@@ -75,6 +75,7 @@ const adminState = { mode: null, deliveryOrderId: null }; // 'broadcast' | 'awai
 // ───────── EXPRESS ─────────
 const app = express();
 app.use(express.json());
+// Serve public as /static so we can send photos by URL (e.g., HOST_URL/static/qrph.jpg)
 app.use("/static", express.static("public"));
 
 // ───────── TG HELPERS ─────────
@@ -167,31 +168,30 @@ async function forwardCustomerMessageToAdmins(chatId, text) {
   await tgSendMessage(chatId, "✅ Sent to admin. We’ll reply here as soon as possible.");
 }
 
-// ───────── QR (with Payment + Contact Admin) ─────────
+// ───────── QR (Payment + Contact Admin) ─────────
+// Robust: send photo by public URL (no FormData/Blob needed)
 async function sendPaymentQR(chatId) {
   try {
-    const filePath = path.join(__dirname, "public", "qrph.jpg");
-    const buf = await fs.readFile(filePath);
-
-    const fd = new FormData();
-    fd.append("chat_id", String(chatId));
-    fd.append("caption", "💰 Scan to pay (QRPh / GCash).");
-    fd.append(
-      "reply_markup",
-      JSON.stringify({
-        inline_keyboard: [
-          [
-            { text: "💰 Payment Processed", callback_data: "order:confirm" },
-            { text: "🧑‍💼 Contact Admin",  callback_data: "contact:admin"  },
+    const url = `${HOST_URL?.replace(/\/+$/, "")}/static/qrph.jpg`;
+    const r = await fetchFn(`${TELEGRAM_API}/sendPhoto`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        chat_id: chatId,
+        photo: url,
+        caption: "💰 Scan to pay (QRPh / GCash).",
+        reply_markup: {
+          inline_keyboard: [
+            [
+              { text: "💰 Payment Processed", callback_data: "order:confirm" },
+              { text: "🧑‍💼 Contact Admin",  callback_data: "contact:admin"  },
+            ],
           ],
-        ],
-      })
-    );
-    fd.append("photo", new Blob([buf], { type: "image/jpeg" }), "qrph.jpg");
-
-    const r = await fetchFn(`${TELEGRAM_API}/sendPhoto`, { method: "POST", body: fd });
+        },
+      }),
+    });
     const j = await r.json().catch(() => null);
-    if (!j?.ok) throw new Error("Telegram rejected upload");
+    if (!j?.ok) throw new Error("Telegram rejected QR photo");
     return true;
   } catch (err) {
     console.error("QR upload failed:", err);
@@ -218,7 +218,8 @@ function buildCategoryKeyboard() {
 }
 function buildAmountKeyboard(s) {
   const inline_keyboard = [];
-  const list = PRICE_LIST[s.category] || [];
+  const listKey = s.category; // sachet | syringe | poppers_* ...
+  const list = PRICE_LIST[listKey] || [];
   for (let i = 0; i < list.length; i += 2) {
     inline_keyboard.push(list.slice(i, i + 2).map(p => ({
       text: p.label, callback_data: p.callback
@@ -440,9 +441,8 @@ async function handleCallbackQuery(cbq) {
   }
 
   if (data.startsWith("amt:")) {
-    const amount = data.slice(4);         // peso amount or poppers brand label
+    const amount = data.slice(4);         // peso/units string OR poppers brand
     ensureCart(s);
-    s.selectedAmount = amount;
     const itemLabel = (s.category?.startsWith("poppers")) ? `₱700 • ${amount}` : amount;
     s.cart.push({ category: s.category, amount: itemLabel });
     await tgSendMessage(chatId, `🛒 Added: ${s.category} — ${itemLabel}`);
@@ -565,6 +565,13 @@ async function handleMessage(msg) {
     return tgSendMessage(chatId, "📝 Please enter your name:");
   }
   if (text === "/contact") return startContactAdmin(chatId);
+
+  // NEW: /status (you advertised it in setMyCommands)
+  if (text === "/status") {
+    const lastOrder = [...orders].reverse().find(o => o.customerChatId === chatId);
+    if (!lastOrder) return tgSendMessage(chatId, "📦 No orders found yet.");
+    return tgSendMessage(chatId, `📦 Latest order:\n• ID: #${lastOrder.id}\n• Status: ${lastOrder.status}\n• Items:\n${itemsToText(lastOrder.items)}`);
+  }
 
   // Start (Terms & Conditions gate + Yelo🟡Spot welcome)
   if (text === "/start" || text === "/restart") {

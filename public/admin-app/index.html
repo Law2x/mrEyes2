@@ -1,407 +1,307 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta
-  name="viewport"
-  content="width=device-width, initial-scale=1, maximum-scale=1"
-/>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Yelo🟡Spot — Admin Dashboard</title>
 <style>
-  :root{
-    --bg:#0b0e11;
-    --panel:#12161b;
-    --panel-2:#151a20;
-    --on:#e7f9ee;
-    --muted:#94a3b8;
-    --accent:#ffd54a;
-    --ok:#22c55e;
-    --warn:#f59e0b;
-    --bad:#ef4444;
-    --ring:rgba(255,213,74,0.25);
-    --glass:rgba(255,255,255,0.06);
-    --glass-2:rgba(255,255,255,0.08);
-  }
-  *{box-sizing:border-box}
-  html,body{height:100%}
-  body{
-    margin:0;
-    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
-    background: radial-gradient(1200px 600px at 20% -10%, rgba(255,213,74,.12), transparent 70%), var(--bg);
-    color:#e5e7eb;
-  }
-
-  .wrap{max-width:960px;margin:0 auto;padding:14px 14px 32px}
-
-  /* Header */
-  .head{
-    display:flex;align-items:center;gap:12px;justify-content:space-between;margin-bottom:10px
-  }
-  .id-left{display:flex;align-items:center;gap:10px}
-  .brand{
-    display:flex;align-items:center;gap:8px;font-weight:700;font-size:18px
-  }
-  .dot{width:14px;height:14px;background:var(--accent);border-radius:50%}
-  .sub{color:var(--muted);font-weight:600}
-  .stamp{color:var(--muted);font-size:12px}
-
-  .right-actions{display:flex;align-items:center;gap:10px}
-
-  .toggle{
-    display:inline-flex;align-items:center;gap:8px;
-    background:var(--panel-2);border:1px solid rgba(255,255,255,.06);
-    padding:8px 10px;border-radius:999px
-  }
-  .toggle input{appearance:none;width:36px;height:22px;border-radius:999px;background:#242a31;position:relative;outline:none;cursor:pointer}
-  .toggle input:checked{background:#2e7d32}
-  .toggle input::after{
-    content:"";position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;
-    background:#fff;transition:transform .18s ease
-  }
-  .toggle input:checked::after{transform:translateX(14px)}
-
-  .btn{
-    background:linear-gradient(180deg, var(--accent), #ffc72a);
-    color:#1a1a1a;font-weight:700;border:none;padding:9px 14px;border-radius:14px;
-    box-shadow:0 0 0 3px var(--ring) inset;cursor:pointer
-  }
-  .btn:active{transform:translateY(1px)}
-
-  /* Row of two KPI cards */
-  .kpis{
-    display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:8px 0 16px
-  }
-  .card{
-    background:linear-gradient(180deg, var(--panel), var(--panel-2));
-    border:1px solid rgba(255,255,255,.06);
-    border-radius:16px;padding:14px 14px 16px;
-    box-shadow:0 8px 24px rgba(0,0,0,.3), inset 0 1px 0 rgba(255,255,255,.02)
-  }
-  .card h3{margin:0 0 10px 0;font-size:14px;color:var(--muted);display:flex;align-items:center;gap:10px;justify-content:space-between}
-  .big{font-size:30px;font-weight:800;letter-spacing:.5px}
-  .pill{
-    background:var(--glass);border:1px solid rgba(255,255,255,.06);
-    color:#cbd5e1;padding:6px 10px;border-radius:12px;font-size:13px
-  }
-  .row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
-  select.select{
-    background:var(--panel-2);color:#e5e7eb;border:1px solid rgba(255,255,255,.1);
-    padding:6px 10px;border-radius:10px;appearance:none
-  }
-
-  /* Orders list */
-  .list-title{color:var(--muted);font-weight:600;margin:4px 0 10px 4px}
-  .order{
-    background:linear-gradient(180deg, var(--panel), var(--panel-2));
-    border:1px solid rgba(255,255,255,.06);border-radius:16px;padding:14px;margin-bottom:12px;
-  }
-  .o-top{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
-  .oid{background:var(--glass-2);border:1px solid rgba(255,255,255,.08);padding:4px 8px;border-radius:10px;font-weight:700}
-  .status-badge{padding:4px 8px;border-radius:10px;font-weight:700}
-  .s-prep{background:rgba(148,163,184,.12);color:#cbd5e1;border:1px solid rgba(148,163,184,.25)}
-  .s-ofd{background:rgba(245,158,11,.12);color:#fbbf24;border:1px solid rgba(245,158,11,.25)}
-  .s-done{background:rgba(34,197,94,.12);color:#86efac;border:1px solid rgba(34,197,94,.25)}
-  .s-cancel{background:rgba(239,68,68,.12);color:#fecaca;border:1px solid rgba(239,68,68,.25)}
-  .who{font-weight:800;font-size:15px;margin:8px 0 2px}
-  .addr{color:#cbd5e1}
-  .items{margin-top:8px;color:#cbd5e1}
-  .controls{display:flex;align-items:center;gap:10px;margin-top:12px;flex-wrap:wrap}
-  .btn-ghost{background:var(--panel-2);border:1px solid rgba(255,255,255,.1);color:#e5e7eb;padding:8px 12px;border-radius:12px}
-  .btn-danger{background:#3b1111;border:1px solid rgba(239,68,68,.45);color:#fecaca}
-
-  .empty{color:var(--muted);text-align:center;margin-top:20px}
+  :root{--bg:#0b0d10;--card:#14181d;--muted:#8e9aa7;--text:#eaeff5;--accent:#ffd54a;--ok:#27c281;--warn:#ffb020;--bad:#ff6b6b;}
+  *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--text);font:500 15px/1.45 ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto}
+  .wrap{max-width:920px;margin:0 auto;padding:18px}
+  .top{display:flex;align-items:center;gap:12px}
+  .brand{font-weight:800;letter-spacing:.2px}
+  .brand .dot{color:var(--accent)}
+  .spacer{flex:1}
+  .toolbar{display:flex;align-items:center;gap:10px}
+  .pill{display:inline-flex;align-items:center;gap:10px;background:var(--card);padding:8px 12px;border-radius:999px}
+  .switch{position:relative;display:inline-flex;align-items:center;gap:10px}
+  .switch input{appearance:none;width:46px;height:26px;background:#2a3139;border-radius:999px;position:relative;outline:none;cursor:pointer;transition:.2s}
+  .switch input:checked{background:#2d7a4b}
+  .switch input::after{content:"";position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;transition:.2s}
+  .switch input:checked::after{transform:translateX(20px)}
+  .btn{background:var(--accent);color:#1b1b1b;border:0;padding:9px 14px;border-radius:14px;font-weight:800;cursor:pointer}
+  .cards{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;margin:14px 0}
+  @media (max-width:640px){.cards{grid-template-columns:1fr}}
+  .card{background:var(--card);border-radius:18px;padding:14px;box-shadow:0 2px 10px rgba(0,0,0,.25)}
+  .card h3{margin:0 0 10px 0;font-size:13px;color:var(--muted);display:flex;align-items:center;gap:10px}
+  select{appearance:none;background:#0f1317;border:1px solid #242a31;color:var(--text);padding:8px 12px;border-radius:10px}
+  .kpi{display:flex;align-items:center;gap:10px}
+  .num{font-size:32px;font-weight:900}
+  .peso{font-size:26px;font-weight:900}
+  .chip{margin-left:auto;background:#0f1317;border:1px solid #242a31;padding:4px 8px;border-radius:10px;color:var(--muted);font-weight:700}
+  .list-title{margin:8px 2px 10px;color:var(--muted)}
+  .order{background:#101419;border:1px solid #1d232a;border-radius:16px;padding:12px;margin-bottom:10px}
+  .order .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+  .order .id{font-weight:900}
+  .order .when{color:var(--muted)}
+  .tags{display:flex;gap:8px;margin:6px 0}
+  .tag{padding:4px 8px;border-radius:999px;font-size:12px;font-weight:800}
+  .t-ok{background:#133a26;color:#9ae6b4;border:1px solid #1e6a40}
+  .t-warn{background:#3a300f;color:#ffe29a;border:1px solid #6a541e}
+  .t-bad{background:#3a1717;color:#ffc1c1;border:1px solid #6a2d2d}
+  .row-controls{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+  .btn-ghost{background:#0f1317;border:1px solid #242a31;color:var(--text);padding:8px 12px;border-radius:12px;cursor:pointer}
+  .sel{min-width:170px}
+  .empty{color:var(--muted);margin:14px 2px}
+  .toast{position:fixed;inset:auto 16px 16px auto;background:#131722;border:1px solid #253048;color:var(--text);padding:12px 14px;border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,.35)}
 </style>
 </head>
 <body>
 <div class="wrap">
-  <div class="head">
-    <div class="id-left">
-      <div class="brand"><span class="dot"></span><span>Yelo🟡Spot</span></div>
-      <div class="sub">— Admin Dashboard</div>
-    </div>
-    <div class="right-actions">
-      <label class="toggle" title="Shop Open / Closed">
-        <span id="shopLabel">Shop</span>
-        <input id="shopToggle" type="checkbox" />
-      </label>
-      <button id="refreshBtn" class="btn">⟳ Refresh</button>
+  <!-- Top bar -->
+  <div class="top">
+    <div class="brand">Yelo<span class="dot">🟡</span>Spot <span style="color:var(--muted)">— Admin Dashboard</span></div>
+    <div class="spacer"></div>
+
+    <!-- Shop toggle now beside/above Refresh in the toolbar -->
+    <div class="toolbar">
+      <div class="pill">
+        <strong>Shop</strong>
+        <label class="switch"><input id="shopToggle" type="checkbox" /><span></span></label>
+      </div>
+      <button id="btnRefresh" class="btn">⟳ Refresh</button>
     </div>
   </div>
 
-  <div class="stamp" id="lastUpdated">Last updated —</div>
-
-  <div class="kpis">
-    <!-- Orders card -->
+  <!-- KPI cards -->
+  <div class="cards">
     <div class="card">
-      <h3>
-        <span class="row">
-          <span>Orders</span>
-          <select id="ordersFilter" class="select">
-            <option value="all">All</option>
-            <option value="confirmed">Order Confirmed</option>
-            <option value="ofd">Out for Delivery</option>
-            <option value="delivered">Delivered</option>
-            <option value="canceled">Canceled</option>
-          </select>
-        </span>
-        <span class="pill" id="ordersCount">0</span>
+      <h3>Orders
+        <select id="orderFilter" class="sel">
+          <option value="all">All</option>
+          <option value="confirmed">Order Confirmed</option>
+          <option value="out_for_delivery">Out for Delivery</option>
+          <option value="completed">Delivered</option>
+          <option value="canceled">Canceled</option>
+        </select>
+        <span id="orderCount" class="chip">0</span>
       </h3>
-      <div class="big" id="ordersBig">0</div>
+      <div class="kpi"><span class="num" id="ordersNum">0</span></div>
     </div>
 
-    <!-- Sales card -->
     <div class="card">
-      <h3>
-        <span>Sales</span>
-        <select id="salesRange" class="select">
+      <h3>Sales
+        <select id="salesFilter" class="sel">
           <option value="all">All</option>
           <option value="today">Today</option>
           <option value="week">This week</option>
           <option value="month">This month</option>
         </select>
       </h3>
-      <div class="big" id="salesBig">₱0</div>
+      <div class="kpi"><span class="peso">₱</span><span class="num" id="salesNum">0</span></div>
     </div>
   </div>
 
   <div class="list-title" id="listTitle">All orders</div>
   <div id="ordersList"></div>
-  <div class="empty" id="emptyMsg" style="display:none;">No orders yet.</div>
 </div>
 
+<div id="toast" class="toast" style="display:none"></div>
+
 <script>
-  const tg = window.Telegram?.WebApp;
-  if (tg) { tg.expand(); tg.MainButton.hide(); }
-
-  const state = {
-    allOrders: [],
-    filter: 'all',
-    salesRange: 'all',
-    shopOpen: true
-  };
-
-  const els = {
-    lastUpdated: document.getElementById('lastUpdated'),
-    refreshBtn: document.getElementById('refreshBtn'),
-    ordersFilter: document.getElementById('ordersFilter'),
-    salesRange: document.getElementById('salesRange'),
-    ordersCount: document.getElementById('ordersCount'),
-    ordersBig: document.getElementById('ordersBig'),
-    salesBig: document.getElementById('salesBig'),
-    ordersList: document.getElementById('ordersList'),
-    emptyMsg: document.getElementById('emptyMsg'),
-    listTitle: document.getElementById('listTitle'),
-    shopToggle: document.getElementById('shopToggle'),
-    shopLabel: document.getElementById('shopLabel')
-  };
-
-  function fmtMoney(n){ return '₱' + (Math.round(n)).toLocaleString('en-PH'); }
-  function ts(){ const d=new Date(); return d.toLocaleString(); }
-
-  function authHeaders(){
-    return { 'X-Telegram-Init-Data': tg?.initData || '', 'Content-Type': 'application/json' };
+  // ---------- Telegram initData helper ----------
+  function getInitData() {
+    const tg = window.Telegram?.WebApp;
+    if (tg?.initData && tg.initData.length) return tg.initData;
+    // Fallbacks: some platforms stash it in URL
+    const hash = new URLSearchParams(location.hash.slice(1));
+    const viaHash = hash.get('tgWebAppData');
+    if (viaHash) return viaHash;
+    const qs = new URLSearchParams(location.search);
+    return qs.get('initData') || '';
   }
 
-  async function loadShop(){
-    try{
-      const r = await fetch('/api/admin/shop', { headers: authHeaders() });
-      const j = await r.json();
-      if(!j?.ok) throw new Error('shop fail');
-      state.shopOpen = !!j.open;
-      els.shopToggle.checked = state.shopOpen;
-      els.shopLabel.textContent = state.shopOpen ? 'Open' : 'Closed';
-    }catch(e){
-      console.warn('Shop fetch failed', e);
+  async function api(path, opt = {}) {
+    const initData = getInitData();
+    const headers = Object.assign(
+      { 'Content-Type': 'application/json', 'X-Telegram-Init-Data': initData },
+      opt.headers || {}
+    );
+    const res = await fetch(path, Object.assign({}, opt, { headers }));
+    let body = null;
+    try { body = await res.json(); } catch(e) {}
+    if (!res.ok || !body?.ok) {
+      const msg = body?.error || body?.message || `HTTP ${res.status}`;
+      throw new Error(msg);
     }
+    return body;
   }
-  async function toggleShop(open){
-    try{
-      const r = await fetch('/api/admin/shop', {
-        method:'POST',
-        headers: authHeaders(),
-        body: JSON.stringify({ open })
+
+  // ---------- UI helpers ----------
+  const ordersEl = document.getElementById('ordersList');
+  const orderCountEl = document.getElementById('orderCount');
+  const ordersNumEl = document.getElementById('ordersNum');
+  const salesNumEl  = document.getElementById('salesNum');
+  const listTitleEl = document.getElementById('listTitle');
+  const toastEl = document.getElementById('toast');
+
+  function money(n){ return (Math.round(n)).toLocaleString('en-PH'); }
+  function showToast(t){ toastEl.textContent=t; toastEl.style.display='block'; clearTimeout(showToast._t); showToast._t=setTimeout(()=>toastEl.style.display='none',2700); }
+
+  function renderOrders(list) {
+    ordersEl.innerHTML = '';
+    if (!list.length) {
+      ordersEl.innerHTML = '<div class="empty">No orders.</div>';
+      return;
+    }
+    for (const o of list) {
+      const card = document.createElement('div');
+      card.className = 'order';
+      const when = new Date(o.createdAt);
+      const whenTxt = when.toLocaleString();
+      const itemsTxt = (o.items||[]).map(i=>'• ' + i.category + ' — ' + i.amount).join('<br/>');
+
+      const tag = (s)=>{
+        if (s==='completed') return '<span class="tag t-ok">Delivered</span>';
+        if (s==='out_for_delivery') return '<span class="tag t-warn">Out for delivery</span>';
+        if (s==='canceled') return '<span class="tag t-bad">Canceled</span>';
+        return '<span class="tag t-warn">Order confirmed</span>';
+      };
+
+      card.innerHTML = `
+        <div class="row">
+          <div class="id">#${o.id}</div>
+          <div class="when">Received from customer: ${whenTxt}</div>
+        </div>
+        <div class="tags">${tag(o.status)}</div>
+        <div style="margin:6px 0 8px;font-weight:800">${o.name || 'Customer'} • ${o.phone || ''}</div>
+        <div>${o.address || ''}</div>
+        <div style="margin-top:8px">${itemsTxt}</div>
+        <div class="row-controls">
+          <button class="btn-ghost" data-sendlink="${o.id}">Send link</button>
+          <select class="sel" data-stage="${o.id}">
+            <option value="0" ${o.statusStage===0?'selected':''}>Order confirmed</option>
+            <option value="1" ${o.statusStage===1?'selected':''}>Out for delivery</option>
+            <option value="2" ${o.statusStage===2?'selected':''}>Delivered</option>
+            <option value="-1" ${o.statusStage===-1?'selected':''}>Cancel</option>
+          </select>
+          <button class="btn-ghost" data-cancel="${o.id}">Cancel</button>
+        </div>`;
+      ordersEl.appendChild(card);
+    }
+
+    // wire controls
+    ordersEl.querySelectorAll('[data-stage]').forEach(sel=>{
+      sel.addEventListener('change', async ()=>{
+        const id = Number(sel.dataset.stage);
+        const stage = Number(sel.value);
+        try {
+          await api(`/api/admin/orders/${id}/stage`, {method:'POST', body:JSON.stringify({stage})});
+          showToast('Status updated');
+          await loadAll(); // refresh
+        } catch(e){ showToast('Update failed: '+e.message); }
+      })
+    });
+    ordersEl.querySelectorAll('[data-sendlink]').forEach(btn=>{
+      btn.addEventListener('click', async ()=>{
+        const id = Number(btn.dataset.sendlink);
+        const link = prompt('Paste delivery/tracking link');
+        if (!link) return;
+        try{
+          await api(`/api/admin/orders/${id}/sendlink`, {method:'POST', body:JSON.stringify({link})});
+          showToast('Link sent to customer');
+          await loadAll();
+        }catch(e){ showToast('Send failed: '+e.message); }
       });
-      const j = await r.json();
-      if(!j?.ok) throw new Error('toggle failed');
-      state.shopOpen = !!j.open;
-      els.shopLabel.textContent = state.shopOpen ? 'Open' : 'Closed';
-    }catch(e){
-      alert('Failed to toggle shop.');
-      els.shopToggle.checked = !open; // revert UI
-    }
+    });
+    ordersEl.querySelectorAll('[data-cancel]').forEach(btn=>{
+      btn.addEventListener('click', async ()=>{
+        const id = Number(btn.dataset.cancel);
+        if (!confirm('Cancel this order?')) return;
+        try{
+          await api(`/api/admin/orders/${id}/stage`, {method:'POST', body:JSON.stringify({stage:-1})});
+          showToast('Order canceled');
+          await loadAll();
+        }catch(e){ showToast('Cancel failed: '+e.message); }
+      });
+    });
   }
 
-  function priceFromLabel(label){
-    // Extract the peso at start like "₱1,000 — 0.056" or "₱700 • Brand"
-    const m = label.match(/₱\s*([\d,]+)/);
-    return m ? Number(m[1].replace(/,/g,'')) : 0;
-    // If you want grams/units to affect price, compute here differently.
+  function filterOrders(list, status) {
+    if (status==='all') return list;
+    if (status==='confirmed') return list.filter(o=> (o.statusStage ?? 0) === 0 && o.status!=='canceled');
+    return list.filter(o => o.status === status);
   }
 
-  function salesSum(orders){
-    // Sum only completed (delivered) orders for "Sales"
-    const delivered = orders.filter(o => (o.status==='completed'||o.statusStage===2));
-    return delivered.reduce((sum,o)=>{
-      const line = (Array.isArray(o.items)?o.items:[]).reduce((s,it)=> s + priceFromLabel(it.amount||''), 0);
-      return sum + line;
-    },0);
-  }
-
-  function filterOrders(){
-    let arr = [...state.allOrders];
-    switch(state.filter){
-      case 'confirmed': arr = arr.filter(o => o.status==='paid' || o.statusStage===0); break;
-      case 'ofd':       arr = arr.filter(o => o.status==='out_for_delivery' || o.statusStage===1); break;
-      case 'delivered': arr = arr.filter(o => o.status==='completed' || o.statusStage===2); break;
-      case 'canceled':  arr = arr.filter(o => o.status==='canceled' || o.statusStage===-1); break;
-      default:          /* all */ break;
-    }
-    return arr;
-  }
-
-  function applySalesWindow(orders){
+  function salesTotal(list, range){
     const now = new Date();
     const start = new Date(0);
-    const range = state.salesRange;
-    if(range==='today'){
-      start.setTime(new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime());
-    } else if(range==='week'){
-      const day = now.getDay(); // 0 Sun
-      const diff = (day+6)%7;   // monday start
-      start.setTime(new Date(now.getFullYear(), now.getMonth(), now.getDate()-diff).getTime());
-    } else if(range==='month'){
-      start.setTime(new Date(now.getFullYear(), now.getMonth(), 1).getTime());
+    if (range==='today'){ start.setTime(now.setHours(0,0,0,0)); }
+    else if (range==='week'){
+      const d = new Date(); const day=(d.getDay()+6)%7; // Mon=0
+      start.setTime(new Date(d.getFullYear(), d.getMonth(), d.getDate()-day).setHours(0,0,0,0));
+    } else if (range==='month'){ start.setTime(new Date(now.getFullYear(), now.getMonth(), 1).setHours(0,0,0,0)); }
+
+    let total = 0;
+    for (const o of list) {
+      const t = new Date(o.createdAt);
+      if (t < start) continue;
+      // very simple parse: sum pesos at start of each "amount" token
+      for (const it of (o.items||[])) {
+        const m = /₱\s?([\d,]+)/.exec(it.amount);
+        if (m) total += Number(m[1].replace(/,/g,''));
+        else if (/₱700/.test(it.amount)) total += 700;
+      }
     }
-    return orders.filter(o => new Date(o.createdAt||o.created_at||o.updatedAt) >= start);
+    return total;
   }
 
-  function statusBadge(o){
-    if (o.status==='canceled' || o.statusStage===-1) return '<span class="status-badge s-cancel">Canceled</span>';
-    if (o.status==='completed' || o.statusStage===2) return '<span class="status-badge s-done">Delivered</span>';
-    if (o.status==='out_for_delivery' || o.statusStage===1) return '<span class="status-badge s-ofd">Out for Delivery</span>';
-    return '<span class="status-badge s-prep">Confirmed</span>';
-  }
+  // ---------- Load + wire ----------
+  let ALL_ORDERS = [];
 
-  function render(){
-    const filtered = filterOrders();
-    const salesPool = applySalesWindow(state.allOrders);
-    els.ordersCount.textContent = String(filtered.length);
-    els.ordersBig.textContent = String(filtered.length);
-    els.salesBig.textContent = fmtMoney(salesSum(salesPool));
-    const titles = { all:'All orders', confirmed:'Confirmed orders', ofd:'Out for Delivery', delivered:'Delivered', canceled:'Canceled' };
-    els.listTitle.textContent = titles[state.filter] || 'All orders';
+  async function loadAll() {
+    try {
+      // shop state
+      const shop = await api('/api/admin/shop');
+      document.getElementById('shopToggle').checked = !!shop.open;
 
-    els.ordersList.innerHTML = '';
-    if (!filtered.length){ els.emptyMsg.style.display='block'; return; }
-    els.emptyMsg.style.display='none';
-
-    filtered.forEach(o=>{
-      const itemsText = (Array.isArray(o.items)?o.items:[]).map(it=>'• '+(it.category||'item')+' — '+(it.amount||'')).join('<br>');
-      const ts = new Date(o.createdAt || o.created_at).toLocaleString();
-      const addr = o.address || '';
-      const who = (o.name || 'Customer') + (o.phone ? ' • ' + o.phone : '');
-      const badge = statusBadge(o);
-
-      const row = document.createElement('div');
-      row.className='order';
-      row.innerHTML = `
-        <div class="o-top">
-          <span class="oid">#${o.id}</span>
-          <span class="stamp">Received: ${ts}</span>
-          ${badge}
-        </div>
-        <div class="who">${who}</div>
-        <div class="addr">${addr}</div>
-        <div class="items" style="margin-top:10px">${itemsText || ''}</div>
-        <div class="controls">
-          <button class="btn-ghost" data-act="send" data-id="${o.id}">Send link</button>
-          <select class="select" data-act="stage" data-id="${o.id}">
-            <option value="0" ${(o.statusStage===0||o.status==='paid')?'selected':''}>Order confirmed</option>
-            <option value="1" ${(o.statusStage===1||o.status==='out_for_delivery')?'selected':''}>Out for delivery</option>
-            <option value="2" ${(o.statusStage===2||o.status==='completed')?'selected':''}>Delivered</option>
-            <option value="-1" ${(o.statusStage===-1||o.status==='canceled')?'selected':''}>Canceled</option>
-          </select>
-          <button class="btn-ghost btn-danger" data-act="cancel" data-id="${o.id}">Cancel</button>
-        </div>
-      `;
-      els.ordersList.appendChild(row);
-    });
-  }
-
-  async function loadOrders(){
-    try{
-      const r = await fetch('/api/admin/orders', { headers: authHeaders() });
-      const j = await r.json();
-      if(!j?.ok) throw new Error('auth/db');
-      state.allOrders = j.orders || [];
-      els.lastUpdated.textContent = 'Last updated • ' + ts();
-      render();
-    }catch(e){
-      console.error(e);
-      alert('Yelo🟡Spot\n\nAuth/DB error loading orders');
+      // orders
+      const {orders} = await api('/api/admin/orders');
+      ALL_ORDERS = orders || [];
+      applyFilters();
+    } catch(e) {
+      showToast('Auth/DB error loading orders');
     }
   }
 
-  async function setStage(id, stage){
-    const r = await fetch(`/api/admin/orders/${id}/stage`, {
-      method:'POST',
-      headers: authHeaders(),
-      body: JSON.stringify({ stage:Number(stage) })
-    });
-    const j = await r.json();
-    if(!j?.ok) throw new Error('stage fail');
-  }
+  function applyFilters(){
+    const of = document.getElementById('orderFilter').value;
+    const sf = document.getElementById('salesFilter').value;
 
-  async function sendLink(id){
-    const link = prompt('Paste delivery/tracking link for order #' + id);
-    if(!link) return;
-    const r = await fetch(`/api/admin/orders/${id}/sendlink`, {
-      method:'POST', headers: authHeaders(), body: JSON.stringify({ link })
-    });
-    const j = await r.json();
-    if(!j?.ok) throw new Error('sendlink fail');
-    await loadOrders();
+    const list = filterOrders(ALL_ORDERS, of);
+    ordersNumEl.textContent = String(list.length);
+    orderCountEl.textContent = String(list.length);
+    listTitleEl.textContent =
+      of==='all' ? 'All orders' :
+      of==='confirmed' ? 'Confirmed orders' :
+      of==='out_for_delivery' ? 'Out for delivery' :
+      of==='completed' ? 'Delivered orders' : 'Canceled orders';
+
+    renderOrders(list);
+
+    const total = salesTotal(ALL_ORDERS, sf);
+    salesNumEl.textContent = money(total);
   }
 
   // Events
-  els.refreshBtn.addEventListener('click', loadOrders);
-  els.ordersFilter.addEventListener('change', e=>{ state.filter = e.target.value; render(); });
-  els.salesRange.addEventListener('change', e=>{ state.salesRange = e.target.value; render(); });
-
-  els.ordersList.addEventListener('change', async (e)=>{
-    const sel = e.target.closest('select[data-act="stage"]');
-    if(!sel) return;
-    const id = sel.getAttribute('data-id');
-    const stage = sel.value;
-    try{ await setStage(id, stage); await loadOrders(); }
-    catch{ alert('Failed to update status.'); }
-  });
-  els.ordersList.addEventListener('click', async (e)=>{
-    const btn = e.target.closest('button[data-act]');
-    if(!btn) return;
-    const id = btn.getAttribute('data-id');
-    const act = btn.getAttribute('data-act');
-    if(act==='send'){ await sendLink(id); }
-    if(act==='cancel'){
-      if(confirm('Cancel order #' + id + '?')){
-        try{ await setStage(id, -1); await loadOrders(); }
-        catch{ alert('Failed to cancel.'); }
-      }
+  document.getElementById('btnRefresh').addEventListener('click', loadAll);
+  document.getElementById('orderFilter').addEventListener('change', applyFilters);
+  document.getElementById('salesFilter').addEventListener('change', applyFilters);
+  document.getElementById('shopToggle').addEventListener('change', async (e)=>{
+    try{
+      await api('/api/admin/shop', {method:'POST', body:JSON.stringify({open:e.target.checked})});
+      showToast(e.target.checked ? 'Shop opened' : 'Shop closed');
+    }catch(err){
+      e.target.checked = !e.target.checked;
+      showToast('Toggle failed: '+err.message);
     }
   });
 
-  // Shop toggle
-  els.shopToggle.addEventListener('change', (e)=>{
-    toggleShop(e.target.checked);
-  });
+  // Telegram theme tweaks (optional)
+  try { window.Telegram?.WebApp?.expand(); } catch(e){}
 
-  // Init
-  (async function(){
-    await loadShop();
-    await loadOrders();
-    // auto refresh every 25s
-    setInterval(loadOrders, 25000);
-  })();
+  // Go!
+  loadAll();
 </script>
 </body>
 </html>

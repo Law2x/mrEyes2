@@ -1,203 +1,207 @@
-/* Admin Mini-App (vanilla JS)
-   - Fetch orders from /api/admin/orders
-   - Clickable counters filter the list
-   - Per-card status dropdown (Confirmed/Preparing/Out for delivery/Delivered/Canceled)
-   - Send-link flow with inline textbox
-   - Auto-refresh support if you want to enable later
-*/
-const qs = (s, el = document) => el.querySelector(s);
-const qsa = (s, el = document) => [...el.querySelectorAll(s)];
-const listEl = qs("#list");
-const lastUpdatedEl = qs("#lastUpdated");
-const refreshBtn = qs("#refreshBtn");
+// ===== Helpers =====
+const $ = (sel, root = document) => root.querySelector(sel);
+const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
 
-const STAGES = [
-  { value: 0, label: "Preparing" },
-  { value: 1, label: "Out for delivery" },
-  { value: 2, label: "Delivered" },
-  { value: -1, label: "Canceled" }
-];
-// Optional “Confirmed” presentation (maps to 0 under the hood)
-const SELECT_OPTIONS = [
-  { value: "0c", label: "Confirmed" }, // treated as 0 when saving
-  ...STAGES.map(s => ({ value: String(s.value), label: s.label })),
-];
+function escapeHtml(s=''){ return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
-let state = {
-  orders: [],
-  filter: "all", // all | -1 | 0 | 1 | 2
+function fmtDate(iso) {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  return d.toLocaleString(undefined, {
+    year: "numeric", month: "short", day: "2-digit",
+    hour: "2-digit", minute: "2-digit",
+  });
+}
+
+function pillForStatus(status){
+  switch(status){
+    case 'paid': return `<span class="pill accent">Confirmed</span>`;
+    case 'out_for_delivery': return `<span class="pill warn">Out for delivery</span>`;
+    case 'completed': return `<span class="pill ok">Delivered</span>`;
+    case 'canceled': return `<span class="pill danger">Canceled</span>`;
+    default: return `<span class="pill">${escapeHtml(status||'—')}</span>`;
+  }
+}
+function pillForStage(stage){
+  const map = { "-1":"Canceled","0":"Confirmed","1":"Out for delivery","2":"Delivered" };
+  const cls = stage===-1?'danger':stage===0?'accent':stage===1?'warn':'ok';
+  return `<span class="pill ${cls}">${map[String(stage)]||'—'}</span>`;
+}
+
+function toast(msg, t=1800){
+  const el = $('#toast');
+  el.textContent = msg;
+  el.hidden = false;
+  setTimeout(()=>{ el.hidden = true; }, t);
+}
+
+// ===== Telegram WebApp initData header =====
+const tg = window.Telegram?.WebApp;
+if (tg) {
+  tg.expand(); // fullscreen feel inside Telegram
+}
+const INIT_DATA = tg?.initData || "";
+const BASE_HEADERS = {
+  "Content-Type": "application/json",
+  "X-Telegram-Init-Data": INIT_DATA
 };
 
-function formatItems(items = []) {
-  return items.map((it, i) => `${i + 1}. ${it.category} — ${it.amount}`).join("\n");
-}
-function fmtTime(ts) {
-  try {
-    const d = new Date(ts);
-    return d.toLocaleString();
-  } catch { return ts || "—"; }
-}
+// ===== State =====
+let ALL = [];
+let FILTER = "all"; // "all" | -1 | 0 | 1 | 2
 
-function setCounts() {
-  const totals = {
-    "-1": 0, "0": 0, "1": 0, "2": 0, all: state.orders.length
-  };
-  state.orders.forEach(o => {
-    const k = String(o.statusStage ?? 0);
-    if (totals[k] !== undefined) totals[k]++;
-  });
-  qs("#count-prep").textContent   = totals["0"];
-  qs("#count-way").textContent    = totals["1"];
-  qs("#count-done").textContent   = totals["2"];
-  qs("#count-cancel").textContent = totals["-1"];
-  qs("#count-all").textContent    = totals.all;
+// ===== Rendering =====
+function renderStats(list){
+  const all = list.length;
+  const c0 = list.filter(o => o.statusStage === 0).length;
+  const c1 = list.filter(o => o.statusStage === 1).length;
+  const c2 = list.filter(o => o.statusStage === 2).length;
+  const cX = list.filter(o => o.statusStage === -1).length;
+  $('#statAll').textContent = all;
+  $('#statConfirmed').textContent = c0;
+  $('#statOutForDelivery').textContent = c1;
+  $('#statDelivered').textContent = c2;
+  $('#statCanceled').textContent = cX;
 }
 
-function render() {
-  setCounts();
-  lastUpdatedEl.textContent = `Last updated • ${new Date().toLocaleTimeString()}`;
-
-  qsa(".chip").forEach(ch => ch.classList.toggle("active", ch.dataset.filter === String(state.filter)));
-
-  const rows = state.orders
-    .filter(o => state.filter === "all" ? true : String(o.statusStage ?? 0) === String(state.filter))
-    .map(o => renderCard(o))
-    .join("");
-
-  listEl.innerHTML = rows || `<div class="glass card"><div>No orders yet.</div></div>`;
+function renderOrders(){
+  const wrap = $('#orders');
+  const list = FILTER === "all" ? ALL : ALL.filter(o => o.statusStage === Number(FILTER));
+  if (!list.length){
+    wrap.innerHTML = `<div class="card" style="opacity:.8">No orders${FILTER==='all'?'':' in this filter'}.</div>`;
+    return;
+  }
+  wrap.innerHTML = list.map(renderOrderCard).join("");
+  bindOrderActions();
 }
 
-function stageBadge(o) {
-  const st = Number(o.statusStage ?? 0);
-  const label = STAGES.find(s => s.value === st)?.label || "Preparing";
-  return `<span class="badge stage-${st}">${label}</span>`;
-}
-
-function renderCard(o) {
+function renderOrderCard(o) {
+  const items = (o.items || []).map(i => `• ${escapeHtml(i.category)} — ${escapeHtml(i.amount)}`).join("<br>");
   const disabled = (o.statusStage === 2 || o.statusStage === -1) ? "disabled" : "";
-  const sendLinkBlock = `
-    <div class="row">
-      <div class="input"><input type="url" placeholder="Paste delivery / tracking link…" id="link-${o.id}"></div>
-      <button class="btn good" onclick="sendLink(${o.id})">Send link</button>
-    </div>
-  `;
-
-  const selectOptions = SELECT_OPTIONS.map(opt => {
-    // treat "0c" (Confirmed) as selected when stage is 0 (initial)
-    const selected = (opt.value === "0c" && (o.statusStage ?? 0) === 0)
-                  || (String(o.statusStage) === opt.value);
-    return `<option value="${opt.value}" ${selected ? "selected" : ""}>${opt.label}</option>`;
-  }).join("");
-
   return `
-  <div class="glass card ${disabled}" id="card-${o.id}">
+  <div class="card" data-id="${o.id}">
     <div class="card-head">
-      <span class="badge id">#${o.id}</span>
-      <span class="badge">${o.status || "paid"}</span>
-      ${stageBadge(o)}
+      <div class="left">
+        <span class="pill">#${o.id}</span>
+        <small class="timestamp">📅 Received from customer: ${fmtDate(o.createdAt)}</small>
+      </div>
+      <div class="right">
+        ${pillForStatus(o.status)} ${pillForStage(o.statusStage)}
+      </div>
     </div>
-    <div class="card-body">
-      <div><strong>${o.name || "—"}</strong> • ${o.phone || ""}</div>
-      <div>${o.address || "—"}</div>
-      <div class="item-list">${formatItems(o.items)}</div>
-      <div style="margin-top:8px;color:#9fb0c7;font-size:12px">Created: ${fmtTime(o.createdAt)}</div>
+
+    <div class="card-title">${escapeHtml(o.name || "—")} • ${escapeHtml(o.phone || "—")}</div>
+    <div class="card-sub">${escapeHtml(o.address || "—")}</div>
+
+    <div class="items">
+      ${items || "—"}
     </div>
 
     <div class="actions">
-      <select class="select" id="sel-${o.id}" onchange="changeStage(${o.id})" ${disabled ? "disabled" : ""}>
-        ${selectOptions}
-      </select>
-      <button class="btn warn" onclick="markOut(${o.id})" ${disabled ? "disabled" : ""}>Out for delivery</button>
-      <button class="btn good" onclick="markDelivered(${o.id})" ${disabled ? "disabled" : ""}>Delivered</button>
-      <button class="btn danger" onclick="cancelOrder(${o.id})" ${disabled ? "disabled" : ""}>Cancel</button>
+      <button class="btn" data-action="sendlink" data-id="${o.id}" ${disabled}>Send link</button>
+      <div class="select-wrap">
+        <select data-action="stage" data-id="${o.id}" ${disabled} title="Update status">
+          <option value="0" ${o.statusStage===0?"selected":""}>Order confirmed</option>
+          <option value="1" ${o.statusStage===1?"selected":""}>Out for delivery</option>
+          <option value="2" ${o.statusStage===2?"selected":""}>Delivered</option>
+          <option value="-1" ${o.statusStage===-1?"selected":""}>Canceled</option>
+        </select>
+      </div>
+      <button class="btn danger" data-action="cancel" data-id="${o.id}" ${disabled}>Cancel</button>
     </div>
-
-    ${disabled ? "" : sendLinkBlock}
   </div>`;
 }
 
-// ————— API —————
-async function api(path, opts = {}) {
-  // The backend verifies the Telegram WebApp init data.
-  const initData = window.Telegram?.WebApp?.initData || "";
-  const res = await fetch(path, {
-    method: opts.method || "GET",
-    headers: {
-      "Content-Type": "application/json",
-      "X-Telegram-Init-Data": initData
-    },
-    body: opts.body ? JSON.stringify(opts.body) : undefined,
+function bindOrderActions(){
+  // filter by clicking counters
+  $$('.stat-card').forEach(btn=>{
+    btn.onclick = ()=>{
+      FILTER = btn.dataset.filter || "all";
+      renderOrders();
+    };
   });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return res.json();
+
+  // per-card actions
+  $$('#orders [data-action="sendlink"]').forEach(btn=>{
+    btn.onclick = async ()=>{
+      const id = Number(btn.dataset.id);
+      const link = prompt("Paste delivery/tracking link:");
+      if (!link) return;
+      btn.disabled = true;
+      try{
+        const r = await fetch(`/api/admin/orders/${id}/sendlink`, {
+          method: "POST",
+          headers: BASE_HEADERS,
+          body: JSON.stringify({ link })
+        });
+        const j = await r.json();
+        if (!j.ok) throw new Error(j.error || "Failed");
+        toast("Link sent to customer");
+        await load(); // refresh
+      }catch(e){ console.error(e); toast("Failed to send link"); }
+      btn.disabled = false;
+    };
+  });
+
+  $$('#orders [data-action="stage"]').forEach(sel=>{
+    sel.onchange = async ()=>{
+      const id = Number(sel.dataset.id);
+      const stage = Number(sel.value); // -1 | 0 | 1 | 2
+      sel.disabled = true;
+      try{
+        const r = await fetch(`/api/admin/orders/${id}/stage`, {
+          method: "POST",
+          headers: BASE_HEADERS,
+          body: JSON.stringify({ stage })
+        });
+        const j = await r.json();
+        if (!j.ok) throw new Error(j.error || "Failed");
+        toast("Status updated");
+        await load(); // refresh
+      }catch(e){ console.error(e); toast("Failed to update"); }
+      sel.disabled = false;
+    };
+  });
+
+  $$('#orders [data-action="cancel"]').forEach(btn=>{
+    btn.onclick = async ()=>{
+      const id = Number(btn.dataset.id);
+      if (!confirm(`Cancel order #${id}?`)) return;
+      btn.disabled = true;
+      try{
+        const r = await fetch(`/api/admin/orders/${id}/stage`, {
+          method: "POST",
+          headers: BASE_HEADERS,
+          body: JSON.stringify({ stage: -1 })
+        });
+        const j = await r.json();
+        if (!j.ok) throw new Error(j.error || "Failed");
+        toast("Order canceled");
+        await load();
+      }catch(e){ console.error(e); toast("Failed to cancel"); }
+      btn.disabled = false;
+    };
+  });
 }
 
-async function load() {
-  refreshBtn.disabled = true;
-  try {
-    const data = await api("/api/admin/orders");
-    state.orders = data.orders || [];
-    render();
-  } catch (e) {
+// ===== Data load =====
+async function load(){
+  try{
+    const r = await fetch("/api/admin/orders", { headers: BASE_HEADERS });
+    const j = await r.json();
+    if (!j.ok) throw new Error(j.error||"Failed");
+    ALL = (j.orders || []).map(o => ({
+      ...o,
+      statusStage: Number(o.statusStage)
+    }));
+    renderStats(ALL);
+    renderOrders();
+    $('#lastUpdated').textContent = `Last updated: ${fmtDate(new Date().toISOString())}`;
+  }catch(e){
     console.error(e);
-    alert("Failed to load orders. Make sure you open this from Telegram (Admin Center → Open Dashboard).");
-  } finally {
-    refreshBtn.disabled = false;
+    toast("Failed to load orders");
   }
 }
 
-// ——— Actions ———
-window.sendLink = async function(id){
-  const el = qs(`#link-${id}`);
-  const link = el?.value?.trim();
-  if (!link) return alert("Paste a delivery / tracking link first.");
-  try {
-    await api(`/api/admin/orders/${id}/sendlink`, { method:"POST", body:{ link } });
-    el.value = "";
-    await load();
-  } catch (e) { console.error(e); alert("Failed to send link."); }
-};
-
-window.markOut = async function(id){
-  try { await api(`/api/admin/orders/${id}/stage`, { method:"POST", body:{ stage:1 } }); await load(); }
-  catch(e){ console.error(e); alert("Failed to update stage."); }
-};
-window.markDelivered = async function(id){
-  try { await api(`/api/admin/orders/${id}/stage`, { method:"POST", body:{ stage:2 } }); await load(); }
-  catch(e){ console.error(e); alert("Failed to update stage."); }
-};
-window.cancelOrder = async function(id){
-  if (!confirm("Cancel this order?")) return;
-  try { await api(`/api/admin/orders/${id}/stage`, { method:"POST", body:{ stage:-1 } }); await load(); }
-  catch(e){ console.error(e); alert("Failed to cancel."); }
-};
-
-window.changeStage = async function(id){
-  const val = qs(`#sel-${id}`).value;
-  // “0c” (Confirmed) maps to 0, others are direct
-  const stage = (val === "0c") ? 0 : Number(val);
-  try {
-    await api(`/api/admin/orders/${id}/stage`, { method:"POST", body:{ stage } });
-    await load();
-  } catch(e) {
-    console.error(e);
-    alert("Failed to update status.");
-  }
-};
-
-// ——— Filters ———
-qsa(".chip").forEach(ch => ch.addEventListener("click", () => {
-  state.filter = ch.dataset.filter;
-  render();
-}));
-
-refreshBtn.addEventListener("click", load);
-
-// Auto-expand in Telegram
-if (window.Telegram?.WebApp) {
-  Telegram.WebApp.expand();
-  Telegram.WebApp.ready();
-}
-
-// Initial load
+$('#refreshBtn').onclick = load;
 load();

@@ -2,96 +2,293 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta
-    name="viewport"
-    content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"
-/>
-  <title>Yelo🟡Spot — Admin Dashboard</title>
-  <link rel="stylesheet" href="./style.css" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <title>Yelo🟡Spot — Admin</title>
+  <style>
+    :root { color-scheme: dark; }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      background: radial-gradient(1200px 600px at 20% -10%, rgba(255,255,255,.06), transparent),
+                  #0c0f13;
+      color: #e9edf3;
+    }
+    .wrap { max-width: 980px; margin: 16px auto; padding: 0 14px; }
+    header {
+      display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:12px;
+    }
+    .title { display:flex; align-items:center; gap:10px; font-weight:700; }
+    .dot { width:12px; height:12px; background:#f7d34d; border-radius:50%; box-shadow:0 0 14px #f7d34d88;}
+    .pill {
+      display:inline-flex; align-items:center; gap:8px; padding:8px 12px; border-radius:22px;
+      background:linear-gradient(180deg, #1a1f27, #12161c); box-shadow: inset 0 1px 0 #ffffff0f, 0 1px 0 #00000090;
+      border:1px solid #ffffff10; font-size:13px;
+    }
+    .btn {
+      border:none; cursor:pointer; color:#111; background:#f7d34d; padding:8px 12px; border-radius:999px;
+      font-weight:600; box-shadow: 0 6px 22px #f7d34d33, inset 0 -2px 0 #d0b338;
+    }
+    .cards { display:grid; grid-template-columns: 1fr 1fr; gap:12px; }
+    @media (max-width:740px){ .cards{ grid-template-columns:1fr; } }
+    .card {
+      border:1px solid #ffffff12; border-radius:18px; padding:14px; background:linear-gradient(180deg,#12161c,#0e1218);
+      box-shadow:0 10px 30px #0008, inset 0 1px #ffffff0f;
+    }
+    .row { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px; }
+    .select { background:#10151b; border:1px solid #ffffff18; color:#cfd6df; border-radius:12px; padding:8px 10px; }
+    .value { font-size:34px; font-weight:800; letter-spacing:.3px; }
+    .list-title { margin:18px 4px 10px; opacity:.8; }
+    .order { border:1px solid #ffffff12; border-radius:16px; padding:12px; background:linear-gradient(180deg,#131821,#0e1218); margin-bottom:12px; }
+    .order h4 { margin:0 0 6px; }
+    .meta { font-size:12px; opacity:.75; display:flex; gap:10px; align-items:center; flex-wrap:wrap;}
+    .badge { padding:4px 8px; border-radius:999px; border:1px solid #ffffff15; background:#0f141a; font-size:12px;}
+    .controls { display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; }
+    .btn-ghost { border:1px solid #ffffff18; background:#0f141a; color:#dfe6f1; padding:8px 10px; border-radius:12px}
+    .btn-danger { background:#ff5b5b; color:#111; border:none; padding:8px 12px; border-radius:12px; }
+    .status-delivered { background:#0e2a1b; border-color:#2d8a57; color:#a3e9c8; }
+    .status-confirmed { background:#26200f; border-color:#b59c3a; color:#f7e7a1; }
+  </style>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
 </head>
 <body>
-  <header class="appbar">
-    <div class="brand">
-      <span class="dot">🟡</span>
-      <span class="name">YeloSpot</span>
-      <span class="sub">— Admin Dashboard</span>
-    </div>
-    <div class="right">
-      <div id="lastUpdated" class="muted"></div>
-      <button id="btnRefresh" class="pill">⟳ Refresh</button>
-    </div>
-  </header>
+  <div class="wrap">
+    <header>
+      <div class="title"><div class="dot"></div> <div>Yelo🟡Spot — <span style="opacity:.8">Admin Dashboard</span></div></div>
+      <button id="btnRefresh" class="btn">⟳ Refresh</button>
+    </header>
 
-  <!-- TWO COMPACT CARDS -->
-  <section class="top-cards">
-    <!-- Orders card -->
-    <div class="card stat">
-      <div class="row">
-        <div class="label">Orders</div>
-        <select id="ordersFilter" class="select">
-          <option value="all">All</option>
-          <option value="confirmed">Order confirmed</option>
-          <option value="out">Out for delivery</option>
-          <option value="delivered">Delivered</option>
-          <option value="canceled">Canceled</option>
-        </select>
-      </div>
-      <div class="value" id="ordersCount">0</div>
-    </div>
-
-    <!-- Sales card -->
-    <div class="card stat">
-      <div class="row">
-        <div class="label">Sales</div>
-        <select id="salesRange" class="select">
-          <option value="today">Today</option>
-          <option value="week">Week</option>
-          <option value="month">Month</option>
-          <option value="all" selected>All</option>
-        </select>
-      </div>
-      <div class="value" id="salesValue">₱0</div>
-    </div>
-  </section>
-
-  <!-- Filter hint -->
-  <section class="filter-bar">
-    <div id="activeFilter">All orders</div>
-  </section>
-
-  <!-- ORDERS LIST -->
-  <main id="ordersList" class="orders"></main>
-
-  <!-- Card template -->
-  <template id="orderCardTmpl">
-    <article class="card order">
-      <div class="head">
-        <div class="left">
-          <span class="badge id">#1</span>
-          <span class="badge recvd">📅 <span class="rcvdtxt"></span></span>
-        </div>
-        <div class="chips"></div>
-      </div>
-
-      <h3 class="title"></h3>
-      <div class="addr"></div>
-      <div class="items"></div>
-
-      <div class="actions">
-        <button class="btn ghost send-link">Send link</button>
-        <div class="select-wrap">
-          <select class="stage">
-            <option value="0">Order confirmed</option>
-            <option value="1">Out for delivery</option>
-            <option value="2">Delivered</option>
-            <option value="-1">Canceled</option>
+    <div class="cards">
+      <!-- Orders card -->
+      <div class="card">
+        <div class="row">
+          <div class="pill">Orders</div>
+          <select id="ordersFilter" class="select">
+            <option value="all">All</option>
+            <option value="confirmed">Order Confirmed</option>
+            <option value="out_for_delivery">Out for Delivery</option>
+            <option value="delivered">Delivered</option>
+            <option value="canceled">Canceled</option>
           </select>
         </div>
-        <button class="btn danger cancel">Cancel</button>
+        <div id="ordersCount" class="value">0</div>
       </div>
-    </article>
-  </template>
 
-  <script src="./app.js" type="module"></script>
+      <!-- Sales card -->
+      <div class="card">
+        <div class="row">
+          <div class="pill">Sales</div>
+          <select id="salesFilter" class="select">
+            <option value="all">All</option>
+            <option value="today">Today</option>
+            <option value="week">This week</option>
+            <option value="month">This month</option>
+          </select>
+        </div>
+        <div id="salesAmount" class="value">₱0</div>
+      </div>
+    </div>
+
+    <h3 class="list-title" id="listTitle">All orders</h3>
+    <div id="ordersList"></div>
+  </div>
+
+<script>
+(() => {
+  const tg = window.Telegram?.WebApp;
+  // Make sure Telegram UI is ready
+  try { tg?.expand?.(); } catch {}
+
+  // Always provide initData header
+  const INIT_DATA = tg?.initData || ""; // IMPORTANT
+  const BASE = ""; // same-origin
+
+  // Simple helpers
+  const peso = n => "₱" + (Math.round(n)).toLocaleString("en-PH");
+  const el = sel => document.querySelector(sel);
+  const ordersFilter = el("#ordersFilter");
+  const salesFilter  = el("#salesFilter");
+  const ordersCount  = el("#ordersCount");
+  const salesAmount  = el("#salesAmount");
+  const list         = el("#ordersList");
+  const listTitle    = el("#listTitle");
+  const refreshBtn   = el("#btnRefresh");
+
+  let ORDERS = [];
+
+  function computeSales(range, rows) {
+    // very simple: sum items that look like "₱####" in amount field
+    // sachet/syringe items already include the peso in label; poppers are fixed ₱700
+    let sum = 0;
+    const now = new Date();
+    const start = new Date(0);
+    if (range === "today") { const d=new Date(now); d.setHours(0,0,0,0); start.setTime(d.getTime()); }
+    if (range === "week")  { const d=new Date(now); const day=(d.getDay()||7); d.setDate(d.getDate()-day+1); d.setHours(0,0,0,0); start.setTime(d.getTime()); }
+    if (range === "month") { const d=new Date(now.getFullYear(), now.getMonth(), 1); start.setTime(d.getTime()); }
+
+    for (const o of rows) {
+      const createdAt = new Date(o.createdAt || o.created_at || 0);
+      if (range !== "all" && createdAt < start) continue;
+      for (const it of (o.items || [])) {
+        // sachet/syringe amounts look like "₱1,000 — 0.056"
+        const m = /₱\s*([\d,]+)/.exec(it.amount || "");
+        if (m) { sum += Number(m[1].replace(/,/g,"")); continue; }
+        // poppers fixed price
+        if ((it.category||"").startsWith("poppers")) sum += 700;
+      }
+    }
+    return sum;
+  }
+
+  function formatDate(s) {
+    const d = new Date(s);
+    if (!isFinite(d)) return "";
+    return d.toLocaleString();
+  }
+
+  function render() {
+    // Orders count by selected status
+    const statusVal = ordersFilter.value;
+    const filtered = ORDERS.filter(o => statusVal==="all" ? true : (o.status === statusVal));
+    ordersCount.textContent = filtered.length;
+    listTitle.textContent = (ordersFilter.selectedOptions[0]?.textContent || "Orders");
+
+    // Sales
+    salesAmount.textContent = peso(computeSales(salesFilter.value, ORDERS));
+
+    // List
+    list.innerHTML = "";
+    for (const o of filtered) {
+      const card = document.createElement("div");
+      card.className = "order";
+
+      const statusBadge = document.createElement("span");
+      statusBadge.className = "badge " +
+        (o.status === "delivered" ? "status-delivered" :
+         o.status === "confirmed" ? "status-confirmed" : "");
+      statusBadge.textContent =
+        o.status === "out_for_delivery" ? "Out for Delivery" :
+        o.status.charAt(0).toUpperCase()+o.status.slice(1);
+
+      const h = document.createElement("h4");
+      h.textContent = `#${o.id}  ${o.name || ""} • ${o.phone || ""}`;
+
+      const meta = document.createElement("div");
+      meta.className = "meta";
+      const dt = document.createElement("span");
+      dt.textContent = `Received: ${formatDate(o.createdAt)}`;
+      const addr = document.createElement("span");
+      addr.textContent = o.address || "";
+      meta.append(dt, statusBadge, addr);
+
+      // items line
+      const items = document.createElement("div");
+      items.style.marginTop = "6px";
+      items.style.opacity = ".9";
+      items.textContent = (o.items||[]).map(i => `• ${i.category} — ${i.amount}`).join("  ·  ");
+
+      // controls
+      const controls = document.createElement("div");
+      controls.className = "controls";
+
+      // send link
+      const sendBtn = document.createElement("button");
+      sendBtn.className = "btn-ghost";
+      sendBtn.textContent = "Send link";
+      sendBtn.onclick = async () => {
+        const link = prompt("Paste the delivery / tracking link:");
+        if (!link) return;
+        await apiPost(`/api/admin/orders/${o.id}/sendlink`, { link });
+        await load(); // refresh
+      };
+
+      // status dropdown
+      const sel = document.createElement("select");
+      sel.className = "select";
+      sel.innerHTML = `
+        <option value="confirmed">Order confirmed</option>
+        <option value="out_for_delivery">Out for delivery</option>
+        <option value="delivered">Delivered</option>
+        <option value="canceled">Canceled</option>
+      `;
+      // map current status -> option
+      sel.value = (
+        o.status === "paid" ? "confirmed" :
+        o.status === "out_for_delivery" ? "out_for_delivery" :
+        o.status === "completed" ? "delivered" :
+        o.status
+      );
+      sel.onchange = async () => {
+        const map = { confirmed: 0, out_for_delivery: 1, delivered: 2, canceled: -1 };
+        await apiPost(`/api/admin/orders/${o.id}/stage`, { stage: map[sel.value] });
+        await load();
+      };
+
+      // cancel
+      const cancel = document.createElement("button");
+      cancel.className = "btn-danger";
+      cancel.textContent = "Cancel";
+      cancel.onclick = async () => {
+        await apiPost(`/api/admin/orders/${o.id}/stage`, { stage: -1 });
+        await load();
+      };
+
+      // disable controls when finalized
+      if (["completed","delivered","canceled"].includes(o.status)) {
+        sendBtn.disabled = sel.disabled = cancel.disabled = true;
+        sendBtn.style.opacity = sel.style.opacity = cancel.style.opacity = .55;
+      }
+
+      controls.append(sendBtn, sel, cancel);
+      card.append(h, meta, items, controls);
+      list.append(card);
+    }
+  }
+
+  async function apiGet(path) {
+    const res = await fetch(`${BASE}${path}${path.includes("?")?"&":"?"}t=${Date.now()}`, {
+      headers: { "X-Telegram-Init-Data": INIT_DATA }
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const j = await res.json();
+    if (j?.ok !== true) throw new Error(j?.error || "server_error");
+    return j;
+  }
+
+  async function apiPost(path, body) {
+    const res = await fetch(`${BASE}${path}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Telegram-Init-Data": INIT_DATA
+      },
+      body: JSON.stringify(body || {})
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const j = await res.json();
+    if (j?.ok !== true) throw new Error(j?.error || "server_error");
+    return j;
+  }
+
+  async function load() {
+    try {
+      refreshBtn.disabled = true;
+      const data = await apiGet("/api/admin/orders");
+      ORDERS = data.orders || [];
+      render();
+    } catch (e) {
+      console.error(e);
+      alert("Auth/DB error loading orders");
+    } finally {
+      refreshBtn.disabled = false;
+    }
+  }
+
+  ordersFilter.onchange = render;
+  salesFilter.onchange = render;
+  refreshBtn.onclick = load;
+
+  load();
+})();
+</script>
 </body>
 </html>

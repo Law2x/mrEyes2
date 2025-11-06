@@ -1,20 +1,25 @@
-// db.js — Supabase/Postgres (Render-safe, IPv4-first)
+// db.js — Supabase/Postgres using explicit IPv4 host (fixes ENETUNREACH on Render)
 import pkgPg from "pg";
-import dns from "dns";
+import dns from "dns/promises";
 const { Pool } = pkgPg;
 
-// Force IPv4 for any DNS lookups used by pg
-const ipv4Lookup = (hostname, options, cb) =>
-  dns.lookup(hostname, { ...options, family: 4, hints: dns.ADDRCONFIG }, cb);
+const dbUrl = new URL(process.env.DATABASE_URL);
 
+// Resolve the Supabase hostname to IPv4 once at boot
+const { address: host4 } = await dns.lookup(dbUrl.hostname, { family: 4, all: false });
+
+// Create pool using explicit IPv4 host (not the connectionString)
 export const pool = new Pool({
-  connectionString: process.env.DATABASE_URL,
-  ssl: { rejectUnauthorized: false },   // Supabase requires SSL
+  host: host4,
+  port: Number(dbUrl.port || 5432),
+  user: decodeURIComponent(dbUrl.username),
+  password: decodeURIComponent(dbUrl.password),
+  database: dbUrl.pathname.replace(/^\//, ""),
+  ssl: { rejectUnauthorized: false }, // Supabase requires SSL
   keepAlive: true,
-  lookup: ipv4Lookup,                   // 👈 avoid ENETUNREACH on IPv6-only resolution
 });
 
-// Optional: quick connectivity probe you can call from /health
+// Optional quick DB probe
 export async function pingDb() {
   await pool.query("SELECT 1");
 }
@@ -41,7 +46,6 @@ export async function dbInit() {
   `);
 }
 
-// Normalize row → JS object
 const mapRow = (r) => ({
   id: r.id,
   customerChatId: r.customer_chat_id,
@@ -138,6 +142,6 @@ export async function markReceivedByChat(customerChatId) {
   );
 }
 
-// Optional: clean shutdown
+// Clean shutdown (optional)
 process.on("SIGTERM", () => { pool.end().catch(() => {}); });
 process.on("SIGINT",  () => { pool.end().catch(() => {}); });

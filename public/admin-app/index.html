@@ -2,14 +2,9 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta
-  name="viewport"
-  content="width=device-width, initial-scale=1, viewport-fit=cover"
-/>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Yelo🟡Spot — Admin</title>
-<link rel="preconnect" href="https://telegram.org">
 <style>
-/* ===== Base (dark) ===== */
 :root{
   --bg:#0f1115;
   --panel:#161a21;
@@ -22,540 +17,141 @@
   --success:#18c37e;
   --warning:#edb64f;
   --danger:#ff5c6c;
-
-  /* unified control height (toggle + refresh) */
   --ctrl-h:32px;
   --radius:12px;
   --radius-sm:10px;
   --gap:12px;
 }
-
 *{box-sizing:border-box}
-html,body{height:100%}
-body{
-  margin:0;
-  background:linear-gradient(180deg,#0e1014 0%, #0b0d11 100%);
-  color:var(--text);
-  font: 14px/1.35 system-ui, -apple-system, Segoe UI, Roboto, Inter, Arial, sans-serif;
-  overflow-x:hidden;
-}
-
-/* ===== Header Bar ===== */
-.bar{
-  position:sticky; top:0; z-index:10;
-  background:linear-gradient(180deg, #0f1218 0%, rgba(15,18,24,.7) 100%);
-  backdrop-filter: saturate(1.2) blur(10px);
-  border-bottom:1px solid rgba(255,255,255,.04);
-}
-.bar__row{
-  max-width:980px;
-  margin:0 auto;
-  padding:8px 14px;                 /* compact header */
-  display:flex; align-items:center; gap:14px;
-  justify-content:space-between;
-  flex-wrap:wrap;  /* never causes sideways scroll */
-}
-.brand{
-  min-width:0;
-  display:flex; align-items:center; gap:10px;
-}
-.brand__dot{
-  width:10px; height:10px; border-radius:50%;
-  background: radial-gradient(circle at 30% 30%, #fff6a3 0%, #ffd54d 50%, #b78b00 100%);
-  box-shadow:0 0 12px rgba(255, 213,77,.7);
-}
-.brand__title{
-  font-weight:800;
-  font-size:24px;                   /* big name */
-  letter-spacing:.2px;
-  white-space:nowrap;
-}
-.brand__subtitle{
-  display:block;
-  color:var(--muted);
-  font-size:11px;
-  margin-top:2px;
-}
-
-/* right cluster (toggle + refresh) */
-.controls{
-  display:flex; align-items:center; gap:10px;
-}
-.controls__stack{
-  display:flex; flex-direction:column; gap:8px;
-  align-items:flex-end;
-}
-
-/* ===== Toggle (same size as button) ===== */
-.switch{
-  height:var(--ctrl-h);
-  display:flex; align-items:center; gap:8px;
-  padding:0 10px;
-  min-width:124px;
-  background:var(--panel);
-  border:1px solid var(--border);
-  border-radius:var(--radius-sm);
-  box-shadow:0 1px 0 rgba(255,255,255,.05) inset, 0 6px 16px rgba(0,0,0,.18);
-}
-.switch label{font-weight:800; font-size:13px}
-.toggle{
-  position:relative; width:42px; height:22px; border-radius:20px;
-  background:#2a2f3a; transition:.2s ease;
-  box-shadow: inset 0 2px 6px rgba(0,0,0,.45);
-}
-.toggle:before{
-  content:""; position:absolute; top:2px; left:2px;
-  width:18px; height:18px; border-radius:50%;
-  background: radial-gradient(circle at 40% 30%, #ffffff 0%, #cde8d6 50%, #68e28b 100%);
-  box-shadow: 0 2px 6px rgba(0,0,0,.5);
-  transition:.2s ease;
-}
-.toggle.on{ background:#1f5f3e; }
-.toggle.on:before{ transform:translateX(20px); }
-
-/* ===== Buttons ===== */
-.btn{
-  height:var(--ctrl-h);
-  display:inline-flex; align-items:center; gap:6px;
-  padding:0 12px;
-  border-radius:var(--radius-sm);
-  border:1px solid rgba(0,0,0,.4);
-  background: linear-gradient(180deg, #ffd86b 0%, #ffc400 100%);
-  color:#2a2100; font-weight:800; font-size:12px;
-  box-shadow: 0 2px 0 rgba(0,0,0,.25), 0 8px 18px rgba(255,196,0,.15) inset;
-  cursor:pointer; user-select:none;
-}
-.btn svg{ width:12px; height:12px; }
-
-/* ===== Metrics row ===== */
-.section{
-  max-width:980px; margin:10px auto 0; padding:0 14px 14px;
-}
-.metrics{
-  display:flex; gap:var(--gap);
-  flex-wrap:wrap; align-items:stretch;
-}
-.metric{
-  flex:1 1 320px;                    /* Orders and Sales stay on one line on phones too if there’s space; wrap if not */
-  min-width:280px;
-  background:var(--panel-2);
-  border:1px solid var(--border);
-  border-radius:var(--radius);
-  padding:10px 12px;                 /* smaller height */
-  box-shadow: 0 10px 30px rgba(0,0,0,.3), inset 0 1px 0 rgba(255,255,255,.03);
-}
-.metric__head{
-  display:flex; align-items:center; justify-content:space-between; gap:10px;
-}
-.metric__title{ font-weight:800; font-size:16px; }
-.pill{
-  display:inline-flex; align-items:center; justify-content:center;
-  background:#212633; color:var(--text);
-  border:1px solid var(--border);
-  border-radius:10px; padding:6px 10px; font-weight:700;
-  font-size:13px; min-width:64px;
-}
-.value{ font-size:26px; font-weight:900; margin-top:2px; }
-
-/* small select */
-.select{
-  appearance:none; outline:none; border:none;
-  background:#232938; color:var(--text);
-  border:1px solid var(--border);
-  border-radius:10px; padding:6px 10px; font-weight:700; font-size:13px;
-}
-
-/* ===== List ===== */
-.h2{ font-size:18px; font-weight:900; margin:18px 0 10px; }
-.card{
-  background:var(--panel);
-  border:1px solid var(--border);
-  border-radius:var(--radius);
-  padding:12px;
-  margin-bottom:12px;
-  box-shadow:0 10px 30px rgba(0,0,0,.3);
-}
-.badge{
-  display:inline-flex; align-items:center; padding:4px 10px; gap:6px;
-  border-radius:999px; font-weight:800; font-size:12px;
-  border:1px solid var(--border); background:#212633; color:var(--text);
-}
-.badge--ok{ background:#0f2a23; color:#b0ffda; border-color:#104836; }
-.badge--warn{ background:#2a2413; color:#ffe0a6; border-color:#42351a; }
-.badge--muted{ background:#1f2430; color:#9aa3b7; }
-
-.row{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
-.row.right{ justify-content:flex-end; }
-
-/* controls in card */
-.btn--ghost{
-  background:#242a38; color:#e9edf5; border:1px solid #2f3648;
-  box-shadow:none;
-}
-.btn--danger{
-  background: linear-gradient(180deg, #ff7878 0%, #ff5c6c 100%);
-  color:#320007;
-}
-
-/* Simple modal */
-.modal{
-  position:fixed; inset:0; display:none; align-items:center; justify-content:center;
-  background:rgba(0,0,0,.5); z-index:20;
-}
-.modal__panel{
-  width:min(92vw, 460px);
-  background:var(--panel); border:1px solid var(--border); border-radius:12px;
-  padding:14px;
-}
-.modal__row{ display:flex; gap:10px; margin-top:12px; justify-content:flex-end; }
-
-.hidden{ display:none !important; }
-.error{
-  padding:10px; background:#2a1820; border:1px solid #4a1e2a; color:#ffd7df;
-  border-radius:10px; margin:8px 0;
-}
+html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font:14px/1.4 system-ui,-apple-system,Segoe UI,Roboto,Arial}
+.bar{position:sticky;top:0;z-index:10;background:rgba(15,17,21,.9);backdrop-filter:blur(8px);border-bottom:1px solid rgba(255,255,255,.05)}
+.bar__row{max-width:960px;margin:0 auto;padding:6px 14px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap}
+.brand{display:flex;align-items:center;gap:10px}
+.brand__dot{width:10px;height:10px;border-radius:50%;background:radial-gradient(circle at 30% 30%,#fff6a3 0%,#ffd54d 50%,#b78b00 100%)}
+.brand__title{font-weight:900;font-size:24px;letter-spacing:.2px}
+.brand__subtitle{color:var(--muted);font-size:11px;margin-left:4px}
+.controls{display:flex;flex-direction:column;align-items:flex-end;gap:6px}
+.switch,.btn{height:var(--ctrl-h);display:flex;align-items:center;gap:8px;padding:0 12px;border-radius:var(--radius-sm);font-weight:800}
+.switch{background:var(--panel-2);border:1px solid var(--border)}
+.toggle{width:40px;height:22px;border-radius:20px;background:#2a2f3a;position:relative;transition:.2s}
+.toggle:before{content:"";position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;background:#fff;transition:.2s}
+.toggle.on{background:#1f5f3e}
+.toggle.on:before{transform:translateX(20px);background:#34d399}
+.btn{background:linear-gradient(180deg,#ffd86b,#ffc400);color:#242400;border:none;cursor:pointer;font-size:12px;box-shadow:0 2px 4px rgba(0,0,0,.3)}
+.section{max-width:960px;margin:10px auto;padding:0 14px}
+.metrics{display:flex;gap:var(--gap);flex-wrap:nowrap;justify-content:space-between;align-items:stretch}
+.metric{flex:1;background:var(--panel-2);border:1px solid var(--border);border-radius:var(--radius);padding:10px 12px;min-width:0;box-shadow:0 4px 12px rgba(0,0,0,.4)}
+.metric__head{display:flex;justify-content:space-between;align-items:center}
+.metric__title{font-weight:800;font-size:16px}
+.value{font-size:26px;font-weight:900;margin-top:2px}
+.select{appearance:none;background:#232938;color:var(--text);border:1px solid var(--border);border-radius:8px;padding:5px 8px;font-size:13px;font-weight:700}
+.h2{font-weight:800;margin:16px 0 10px}
+.card{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:12px;margin-bottom:12px;box-shadow:0 6px 16px rgba(0,0,0,.35)}
+.badge{display:inline-flex;align-items:center;padding:4px 10px;border-radius:999px;font-weight:800;font-size:12px}
+.badge--ok{background:#0f2a23;color:#b0ffda}
+.badge--warn{background:#2a2413;color:#ffe0a6}
+.badge--muted{background:#1f2430;color:#9aa3b7}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;justify-content:space-between}
+.btn--small{padding:6px 10px;border-radius:8px;font-weight:700;font-size:12px;cursor:pointer;border:none}
+.btn--ghost{background:#232938;color:var(--text)}
+.btn--danger{background:#ff5c6c;color:#fff}
+@media(max-width:480px){.metrics{flex-direction:column}}
 </style>
 </head>
 <body>
-  <script src="https://telegram.org/js/telegram-web-app.js"></script>
-
-  <!-- ===== Header ===== -->
-  <header class="bar">
-    <div class="bar__row">
-      <div class="brand">
-        <span class="brand__dot"></span>
-        <div>
-          <div class="brand__title">Yelo🟡Spot</div>
-          <div class="brand__subtitle">Admin dashboard</div>
-        </div>
-      </div>
-
-      <div class="controls">
-        <div class="controls__stack">
-          <div class="switch" id="shopSwitch">
-            <label>Shop</label>
-            <div class="toggle" id="shopToggle" role="switch" aria-checked="true" tabindex="0"></div>
-          </div>
-          <button class="btn" id="btnRefresh" title="Reload">
-            <svg viewBox="0 0 24 24" fill="none">
-              <path d="M4 12a8 8 0 0 1 13.657-5.657M20 12a8 8 0 0 1-13.657 5.657" stroke="#3a2a00" stroke-width="2" stroke-linecap="round"/>
-              <path d="M16 6h3V3M8 18H5v3" stroke="#3a2a00" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-            Refresh
-          </button>
-        </div>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<header class="bar">
+  <div class="bar__row">
+    <div class="brand">
+      <span class="brand__dot"></span>
+      <div>
+        <div class="brand__title">Yelo🟡Spot</div>
+        <div class="brand__subtitle">Admin dashboard</div>
       </div>
     </div>
-  </header>
-
-  <!-- ===== Metrics ===== -->
-  <section class="section">
-    <div id="errTop" class="error hidden"></div>
-
-    <div class="metrics">
-      <!-- Orders -->
-      <div class="metric">
-        <div class="metric__head">
-          <div class="metric__title">Orders</div>
-          <select id="ordersFilter" class="select">
-            <option value="all">All</option>
-            <option value="confirmed">Order confirmed</option>
-            <option value="out">Out for delivery</option>
-            <option value="delivered">Delivered</option>
-            <option value="canceled">Canceled</option>
-          </select>
-        </div>
-        <div class="row" style="margin-top:6px">
-          <div class="value" id="ordersCount">0</div>
-          <span class="pill" id="ordersTotalBadge">0</span>
-        </div>
-      </div>
-
-      <!-- Sales -->
-      <div class="metric">
-        <div class="metric__head">
-          <div class="metric__title">Sales</div>
-          <select id="salesRange" class="select">
-            <option value="today">Today</option>
-            <option value="week">This week</option>
-            <option value="month">This month</option>
-            <option value="all">All time</option>
-          </select>
-        </div>
-        <div class="row" style="margin-top:6px">
-          <div class="value">₱ <span id="salesValue">0</span></div>
-        </div>
-      </div>
+    <div class="controls">
+      <div class="switch"><label>Shop</label><div id="shopToggle" class="toggle"></div></div>
+      <button id="btnRefresh" class="btn">⟳ Refresh</button>
     </div>
+  </div>
+</header>
 
-    <h2 class="h2">All orders</h2>
-    <div id="ordersList"></div>
-  </section>
-
-  <!-- ===== Send link modal ===== -->
-  <div class="modal" id="modal">
-    <div class="modal__panel">
-      <div style="font-weight:800; font-size:16px">Send delivery link</div>
-      <div style="margin-top:8px; color:var(--muted); font-size:13px">Paste courier/tracking URL for this order.</div>
-      <input id="linkInput" class="select" style="width:100%; margin-top:10px; background:#10141d; border-color:#2f3650" placeholder="https://…" />
-      <div class="modal__row">
-        <button class="btn btn--ghost" id="btnCancelModal">Cancel</button>
-        <button class="btn" id="btnSendLink">Send</button>
+<section class="section">
+  <div class="metrics">
+    <div class="metric">
+      <div class="metric__head">
+        <div class="metric__title">Orders</div>
+        <select id="ordersFilter" class="select">
+          <option value="all">All</option>
+          <option value="confirmed">Confirmed</option>
+          <option value="out">Out for delivery</option>
+          <option value="delivered">Delivered</option>
+          <option value="canceled">Canceled</option>
+        </select>
       </div>
+      <div class="value" id="ordersCount">0</div>
+    </div>
+    <div class="metric">
+      <div class="metric__head">
+        <div class="metric__title">Sales</div>
+        <select id="salesRange" class="select">
+          <option value="today">Today</option>
+          <option value="week">This week</option>
+          <option value="month">This month</option>
+          <option value="all">All time</option>
+        </select>
+      </div>
+      <div class="value">₱<span id="salesValue">0</span></div>
     </div>
   </div>
 
+  <h2 class="h2">All orders</h2>
+  <div id="ordersList"></div>
+</section>
+
 <script>
-/* ===================== Telegram init & helpers ===================== */
-const tg = window.Telegram?.WebApp;
-if (tg) {
-  tg.ready();
-  tg.expand();
+const tg = window.Telegram?.WebApp; tg?.ready?.(); tg?.expand?.();
+const authHeaders=()=>({'X-Telegram-Init-Data':tg?.initData||'', 'Content-Type':'application/json'});
+let ORDERS=[];
+async function fetchOrders(){
+ try{const r=await fetch('/api/admin/orders',{headers:authHeaders()});
+ const j=await r.json(); if(!j.ok) throw 0; ORDERS=j.orders||[]; renderAll();}
+ catch(e){console.error(e); document.getElementById('ordersList').innerHTML='<div>No orders</div>';}}
+function fmtPeso(n){return Math.round(n).toLocaleString('en-PH');}
+function orderKey(s){if(s===-1)return'canceled';if(s===1)return'out';if(s===2)return'delivered';return'confirmed';}
+function saleAmount(items){let sum=0;for(const i of(items||[])){const m=(i.amount||'').match(/₱\s*([\d,]+)/);if(m)sum+=+m[1].replace(/,/g,'');}return sum;}
+function insideRange(dISO,r){const t=new Date(dISO),n=new Date();if(r==='today'){const a=new Date(n.getFullYear(),n.getMonth(),n.getDate());const b=new Date(a);b.setDate(a.getDate()+1);return t>=a&&t<b;}if(r==='week'){const a=new Date(n);a.setDate(n.getDate()-n.getDay());a.setHours(0,0,0,0);const b=new Date(a);b.setDate(a.getDate()+7);return t>=a&&t<b;}if(r==='month'){const a=new Date(n.getFullYear(),n.getMonth(),1);const b=new Date(n.getFullYear(),n.getMonth()+1,1);return t>=a&&t<b;}return!0;}
+function renderAll(){const f=document.getElementById('ordersFilter').value;const s=document.getElementById('salesRange').value;
+const list=ORDERS.filter(o=>f==='all'||orderKey(o.statusStage)===f);document.getElementById('ordersCount').textContent=list.length;
+const sales=ORDERS.filter(o=>orderKey(o.statusStage)==='delivered'&&insideRange(o.createdAt,s))
+.reduce((a,o)=>a+saleAmount(o.items),0);document.getElementById('salesValue').textContent=fmtPeso(sales);
+const wrap=document.getElementById('ordersList');
+wrap.innerHTML=list.map(o=>`
+<div class="card">
+ <div class="row">
+   <span class="badge badge--muted">#${o.id}</span>
+   <span class="badge ${orderKey(o.statusStage)==='delivered'?'badge--ok':orderKey(o.statusStage)==='out'?'badge--warn':'badge--muted'}">
+     ${orderKey(o.statusStage).replace('_',' ')}
+   </span>
+   <span class="badge">${new Date(o.createdAt).toLocaleString()}</span>
+ </div>
+ <div style="font-weight:800;font-size:16px;margin:6px 0">${o.name||'Customer'} • ${o.phone||''}</div>
+ <div style="color:var(--muted)">${o.address||''}</div>
+ <div style="margin:6px 0">${(o.items||[]).map(i=>`• ${i.category} — ${i.amount}`).join('<br>')}</div>
+ <div class="row">
+   <button class="btn--small btn--ghost">Send link</button>
+   <button class="btn--small btn--danger">Cancel</button>
+ </div>
+</div>`).join('');
 }
-function getInitData() {
-  // prefer Telegram initData; fallback to query param (for browser debug)
-  return tg?.initData || new URLSearchParams(location.search).get('tgWebAppData') || '';
-}
-const authHeaders = () => ({ 'X-Telegram-Init-Data': getInitData(), 'Content-Type':'application/json' });
-
-function fmtPeso(n){ return (Math.round(n).toLocaleString('en-PH')); }
-function showErr(msg){ const el=document.getElementById('errTop'); el.textContent=msg; el.classList.remove('hidden'); }
-function hideErr(){ document.getElementById('errTop').classList.add('hidden'); }
-
-/* ===================== State ===================== */
-let ORDERS = [];
-let modalOrderId = null;
-
-/* ===================== Fetch ===================== */
-async function fetchOrders() {
-  hideErr();
-  try {
-    const r = await fetch('/api/admin/orders', { headers: authHeaders() });
-    const j = await r.json();
-    if (!j?.ok) throw new Error(j?.error || 'failed');
-    ORDERS = j.orders || [];
-    renderAll();
-  } catch (e) {
-    showErr('Auth/DB error loading orders');
-    console.error(e);
-  }
-}
-async function fetchShop() {
-  // Optional endpoint; if you didn’t add it on backend, skip silently
-  try{
-    const r = await fetch('/api/admin/shop', { headers: authHeaders() });
-    if(!r.ok) return;
-    const j = await r.json();
-    setShopToggle(!!j.open);
-  }catch{}
-}
-async function setShop(open){
-  setShopToggle(open);
-  try{
-    await fetch('/api/admin/shop', {
-      method:'POST',
-      headers: authHeaders(),
-      body: JSON.stringify({ open })
-    });
-  }catch(e){ console.error(e); }
-}
-
-/* ===================== Sales math ===================== */
-function orderStatusStageToKey(s) {
-  // -1 canceled, 0 paid/confirmed, 1 out, 2 delivered
-  if (s === -1) return 'canceled';
-  if (s === 1) return 'out';
-  if (s === 2) return 'delivered';
-  return 'confirmed';
-}
-function saleAmountFromItems(items){
-  // Parse labels like "₱700 • Manscent" or "₱1,000 — 0.056"
-  let sum = 0;
-  for (const it of (items||[])) {
-    const m = String(it.amount||'').match(/₱\s*([\d,]+)/);
-    if (m) sum += Number(m[1].replace(/,/g,''));
-    else if (String(it.amount||'').toLowerCase().includes('₱700')) sum += 700; // safety for poppers fixed price
-  }
-  return sum;
-}
-function insideRange(dateISO, range){
-  const t = new Date(dateISO);
-  const now = new Date();
-  if(range==='today'){
-    const a = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const b = new Date(a); b.setDate(b.getDate()+1);
-    return t>=a && t<b;
-  }
-  if(range==='week'){
-    const day = (now.getDay()+6)%7; // Monday=0
-    const a = new Date(now); a.setHours(0,0,0,0); a.setDate(a.getDate()-day);
-    const b = new Date(a); b.setDate(b.getDate()+7);
-    return t>=a && t<b;
-  }
-  if(range==='month'){
-    const a = new Date(now.getFullYear(), now.getMonth(), 1);
-    const b = new Date(now.getFullYear(), now.getMonth()+1, 1);
-    return t>=a && t<b;
-  }
-  return true; // all
-}
-
-/* ===================== Rendering ===================== */
-function renderAll(){
-  renderMetrics();
-  renderList();
-}
-function renderMetrics(){
-  const filter = document.getElementById('ordersFilter').value;
-  const salesR = document.getElementById('salesRange').value;
-
-  const total = ORDERS.length;
-  const filteredCount = ORDERS.filter(o => {
-    const key = orderStatusStageToKey(o.statusStage);
-    if (filter==='all') return true;
-    return key===filter;
-  }).length;
-
-  document.getElementById('ordersCount').textContent = filteredCount;
-  document.getElementById('ordersTotalBadge').textContent = total;
-
-  // Sales = sum of delivered (or all?) by time range; common practice is delivered only
-  const delivered = ORDERS.filter(o => orderStatusStageToKey(o.statusStage)==='delivered' && insideRange(o.createdAt, salesR));
-  const peso = delivered.reduce((acc,o)=> acc + saleAmountFromItems(o.items), 0);
-  document.getElementById('salesValue').textContent = fmtPeso(peso);
-}
-function renderList(){
-  const wrap = document.getElementById('ordersList');
-  wrap.innerHTML = '';
-  const filter = document.getElementById('ordersFilter').value;
-
-  const out = [];
-  for(const o of ORDERS){
-    const key = orderStatusStageToKey(o.statusStage);
-    if(filter!=='all' && filter!==key) continue;
-
-    const chipClass =
-      key==='delivered' ? 'badge badge--ok' :
-      key==='out' ? 'badge badge--warn' :
-      key==='canceled' ? 'badge badge--muted' :
-      'badge';
-    const when = new Date(o.createdAt);
-    const dateStr = when.toLocaleString();
-
-    const itemsTxt = (o.items||[]).map(i=>{
-      // display clean bullet
-      return `• ${i.category?.replace('poppers_','poppers ')} — ${i.amount}`;
-    }).join('<br>');
-
-    out.push(`
-      <div class="card" data-id="${o.id}">
-        <div class="row" style="justify-content:space-between">
-          <div class="row" style="gap:8px">
-            <span class="badge--muted badge">#${o.id}</span>
-            <span class="${chipClass}">${key.charAt(0).toUpperCase()+key.slice(1)}</span>
-          </div>
-          <div class="badge">${dateStr}</div>
-        </div>
-
-        <div style="font-weight:900; font-size:16px; margin:8px 0 4px">
-          ${o.name || 'Customer'} • ${o.phone || o.customerChatId}
-        </div>
-        <div style="color:var(--muted); margin-bottom:8px">${o.address || ''}</div>
-
-        <div style="margin:8px 0">${itemsTxt || ''}</div>
-
-        <div class="row right">
-          <button class="btn btn--ghost" data-act="send" data-id="${o.id}">Send link</button>
-
-          <select class="select" data-act="stage" data-id="${o.id}">
-            <option value="0" ${o.statusStage===0?'selected':''}>Order confirmed</option>
-            <option value="1" ${o.statusStage===1?'selected':''}>Out for delivery</option>
-            <option value="2" ${o.statusStage===2?'selected':''}>Delivered</option>
-            <option value="-1" ${o.statusStage===-1?'selected':''}>Canceled</option>
-          </select>
-
-          <button class="btn btn--danger" data-act="cancel" data-id="${o.id}">Cancel</button>
-        </div>
-      </div>
-    `);
-  }
-  wrap.innerHTML = out.join('') || `<div class="badge badge--muted">No orders</div>`;
-
-  // wire events
-  wrap.querySelectorAll('[data-act="stage"]').forEach(el=>{
-    el.addEventListener('change', async (e)=>{
-      const id = Number(el.dataset.id);
-      const stage = Number(el.value);
-      try{
-        await fetch(`/api/admin/orders/${id}/stage`, {
-          method:'POST',
-          headers: authHeaders(),
-          body: JSON.stringify({ stage })
-        });
-        // update in memory
-        const row = ORDERS.find(x=>x.id===id);
-        if(row) row.statusStage = stage;
-        renderAll();
-      }catch(err){ console.error(err); showErr('Failed to update order'); }
-    });
-  });
-  wrap.querySelectorAll('[data-act="send"]').forEach(el=>{
-    el.addEventListener('click', ()=>{
-      modalOrderId = Number(el.dataset.id);
-      openModal();
-    })
-  });
-  wrap.querySelectorAll('[data-act="cancel"]').forEach(el=>{
-    el.addEventListener('click', async ()=>{
-      const id = Number(el.dataset.id);
-      try{
-        await fetch(`/api/admin/orders/${id}/stage`, {
-          method:'POST', headers: authHeaders(),
-          body: JSON.stringify({ stage: -1 })
-        });
-        const row = ORDERS.find(x=>x.id===id);
-        if(row) row.statusStage = -1;
-        renderAll();
-      }catch(err){ console.error(err); showErr('Failed to cancel'); }
-    });
-  });
-}
-
-/* ===================== Modal ===================== */
-const modal = document.getElementById('modal');
-function openModal(){ modal.style.display='flex'; document.getElementById('linkInput').value=''; }
-function closeModal(){ modal.style.display='none'; modalOrderId=null; }
-document.getElementById('btnCancelModal').addEventListener('click', closeModal);
-document.getElementById('btnSendLink').addEventListener('click', async ()=>{
-  const link = document.getElementById('linkInput').value.trim();
-  if(!link) return;
-  try{
-    await fetch(`/api/admin/orders/${modalOrderId}/sendlink`, {
-      method:'POST', headers: authHeaders(),
-      body: JSON.stringify({ link })
-    });
-    closeModal();
-  }catch(e){ console.error(e); showErr('Failed to send link'); }
-});
-
-/* ===================== Shop toggle ===================== */
-const toggle = document.getElementById('shopToggle');
-function setShopToggle(on){
-  toggle.classList.toggle('on', !!on);
-  toggle.setAttribute('aria-checked', !!on);
-}
-toggle.addEventListener('click', ()=> setShop(!toggle.classList.contains('on')));
-toggle.addEventListener('keydown', (e)=>{ if(e.key==='Enter'||e.key===' '){ e.preventDefault(); toggle.click(); }});
-
-/* ===================== Wire Filters & Refresh ===================== */
-document.getElementById('ordersFilter').addEventListener('change', renderAll);
-document.getElementById('salesRange').addEventListener('change', renderAll);
-document.getElementById('btnRefresh').addEventListener('click', fetchOrders);
-
-/* ===================== Boot ===================== */
-(async function boot(){
-  await Promise.all([fetchOrders(), fetchShop()]);
-})();
+document.getElementById('ordersFilter').onchange=renderAll;
+document.getElementById('salesRange').onchange=renderAll;
+document.getElementById('btnRefresh').onclick=fetchOrders;
+document.getElementById('shopToggle').onclick=e=>{
+ e.target.classList.toggle('on');
+ fetch('/api/admin/shop',{method:'POST',headers:authHeaders(),body:JSON.stringify({open:e.target.classList.contains('on')})});
+};
+fetchOrders();
 </script>
 </body>
 </html>

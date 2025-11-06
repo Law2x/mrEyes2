@@ -7,6 +7,17 @@ import path from "path";
 import crypto from "crypto";
 import { fileURLToPath } from "url";
 
+// ✅ DB imports (use your db.js)
+import {
+  dbInit,
+  createOrder,
+  listRecentOrders,
+  getOrderById,
+  updateOrderStage,
+  setDeliveryLink,
+  markReceivedByChat,
+} from "./db.js";
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -67,8 +78,9 @@ const PRICE_LIST = {
 let SHOP_OPEN = true;
 const sessions = new Map();        // chatId -> { cart, step, ... }
 const adminMessageMap = new Map(); // adminMsgId -> { customerChatId }
-const orders = [];                 // in-memory orders
-let nextOrderId = 1;
+// ⛔ removed: in-memory orders / nextOrderId (now DB-backed)
+// const orders = [];
+// let nextOrderId = 1;
 
 const adminState = { mode: null, deliveryOrderId: null }; // 'broadcast' | 'await_delivery_link'
 
@@ -255,7 +267,6 @@ async function openAdminCenter(forAdminId) {
     reply_markup: adminPanelKeyboard(),
   });
 }
-function findOrder(id) { return orders.find(o => o.id === id); }
 function orderSummaryText(o) {
   const lines = [
     `🧾 Order #${o.id}`,
@@ -265,7 +276,7 @@ function orderSummaryText(o) {
     `📍 ${o.address || "N/A"}`,
     "",
     "🧺 Items:",
-    itemsToText(o.items),
+    itemsToText(o.items || []),
     "",
     `💰 Payment proof: ${o.paymentProof ? "✅" : "❌"}`,
     `📦 Status: ${o.status}`,
@@ -274,8 +285,8 @@ function orderSummaryText(o) {
   return lines.join("\n");
 }
 async function listOrders(chatId) {
-  if (!orders.length) return tgSendMessage(chatId, "— No orders yet —");
-  const latest = [...orders].slice(-10).reverse();
+  const latest = await listRecentOrders(10);
+  if (!latest.length) return tgSendMessage(chatId, "— No orders yet —");
   for (const o of latest) {
     const kb = {
       inline_keyboard: [
@@ -342,59 +353,72 @@ function requireAdminWebApp(req, res, next) {
 }
 
 // ───────── ADMIN MINI-APP API (used by /admin-app) ─────────
-app.get("/api/admin/orders", requireAdminWebApp, (req, res) => {
-  const latest = [...orders].slice(-100).reverse();
-  res.json({
-    ok: true,
-    orders: latest.map(o => ({
-      id: o.id,
-      customerChatId: o.customerChatId,
-      name: o.name,
-      phone: o.phone,
-      address: o.address,
-      status: o.status,
-      statusStage: o.statusStage || (o.status === "completed" ? 2 : o.status === "out_for_delivery" ? 1 : o.status === "canceled" ? -1 : 0),
-      items: o.items,
-      createdAt: o.createdAt,
-    })),
-  });
+app.get("/api/admin/orders", requireAdminWebApp, async (req, res) => {
+  try {
+    const latest = await listRecentOrders(100);
+    res.json({
+      ok: true,
+      orders: latest.map(o => ({
+        id: o.id,
+        customerChatId: o.customerChatId,
+        name: o.name,
+        phone: o.phone,
+        address: o.address,
+        status: o.status,
+        statusStage: o.statusStage ?? (o.status === "completed" ? 2 : o.status === "out_for_delivery" ? 1 : o.status === "canceled" ? -1 : 0),
+        items: o.items,
+        createdAt: o.createdAt,
+      })),
+    });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ ok: false, error: "db_error" });
+  }
 });
 
 // Update stage: 0=Preparing,1=Out for delivery,2=Delivered,-1=Canceled
 app.post("/api/admin/orders/:id/stage", requireAdminWebApp, async (req, res) => {
   const id = Number(req.params.id);
   const { stage } = req.body || {};
-  const o = findOrder(id);
-  if (!o) return res.status(404).json({ ok: false, error: "not_found" });
-
-  o.statusStage = Number(stage);
-  if (o.statusStage === 1) o.status = "out_for_delivery";
-  if (o.statusStage === 2) o.status = "completed";
-  if (o.statusStage === -1) o.status = "canceled";
-
-  const stageText = (s => s === 1 ? "Out for delivery" : s === 2 ? "Delivered" : s === -1 ? "Canceled" : "Preparing")(o.statusStage);
+  if (![ -1, 0, 1, 2 ].includes(Number(stage))) {
+    return res.status(400).json({ ok: false, error: "invalid_stage" });
+  }
   try {
-    await tgSendMessage(o.customerChatId, `📦 *Status update*: Your order is now *${stageText}*.`, { parse_mode: "Markdown" });
-  } catch {}
-  res.json({ ok: true });
+    await updateOrderStage(id, Number(stage));
+    // Notify customer about status change
+    const o = await getOrderById(id);
+    if (o?.customerChatId) {
+      const stageText = (s => s === 1 ? "Out for delivery" : s === 2 ? "Delivered" : s === -1 ? "Canceled" : "Preparing")(Number(stage));
+      await tgSendMessage(o.customerChatId, `📦 *Status update*: Your order is now *${stageText}*.`, { parse_mode: "Markdown" });
+    }
+    res.json({ ok: true });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ ok: false, error: "db_error" });
+  }
 });
 
 // Send delivery/tracking link to customer
 app.post("/api/admin/orders/:id/sendlink", requireAdminWebApp, async (req, res) => {
   const id = Number(req.params.id);
   const { link } = req.body || {};
-  const o = findOrder(id);
-  if (!o) return res.status(404).json({ ok: false, error: "not_found" });
   if (!link) return res.status(400).json({ ok: false, error: "missing_link" });
 
-  await tgSendMessage(
-    o.customerChatId,
-    `🛵 Delivery link:\n${link}\n\nTap below once you receive your order.`,
-    { reply_markup: { inline_keyboard: [[{ text: "📦 Mark as Received", callback_data: "order:received" }]] } }
-  );
-  o.status = "out_for_delivery";
-  o.statusStage = 1;
-  res.json({ ok: true });
+  try {
+    const o = await getOrderById(id);
+    if (!o) return res.status(404).json({ ok: false, error: "not_found" });
+
+    await tgSendMessage(
+      o.customerChatId,
+      `🛵 Delivery link:\n${link}\n\nTap below once you receive your order.`,
+      { reply_markup: { inline_keyboard: [[{ text: "📦 Mark as Received", callback_data: "order:received" }]] } }
+    );
+    await setDeliveryLink(id, link);
+    res.json({ ok: true });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ ok: false, error: "db_error" });
+  }
 });
 
 // ───────── CALLBACKS ─────────
@@ -450,7 +474,7 @@ async function handleCallbackQuery(cbq) {
         break;
       case "order": {
         const id = Number(arg);
-        const o = findOrder(id);
+        const o = await getOrderById(id);
         if (!o) return tgSendMessage(chatId, "Order not found.");
         const kb = {
           inline_keyboard: [
@@ -469,20 +493,18 @@ async function handleCallbackQuery(cbq) {
         break;
       case "done": {
         const id = Number(arg);
-        const o = findOrder(id);
+        const o = await getOrderById(id);
         if (!o) return tgSendMessage(chatId, "Order not found.");
-        o.status = "completed";
-        o.statusStage = 2;
+        await updateOrderStage(id, 2);
         await tgSendMessage(chatId, `✅ Order #${id} marked completed.`);
         await tgSendMessage(o.customerChatId, "✅ Your order has been marked *Completed*. Thank you!", { parse_mode: "Markdown" });
         break;
       }
       case "cancel": {
         const id = Number(arg);
-        const o = findOrder(id);
+        const o = await getOrderById(id);
         if (!o) return tgSendMessage(chatId, "Order not found.");
-        o.status = "canceled";
-        o.statusStage = -1;
+        await updateOrderStage(id, -1);
         await tgSendMessage(chatId, `❌ Order #${id} canceled.`);
         await tgSendMessage(o.customerChatId, "❌ Your order has been *canceled*. If this is a mistake, please /start again.", { parse_mode: "Markdown" });
         break;
@@ -573,9 +595,7 @@ async function handleCallbackQuery(cbq) {
   }
 
   if (data === "order:received") {
-    s.status = "delivered";
-    const o = orders.find(x => x.customerChatId === chatId && x.status !== "canceled");
-    if (o) { o.status = "delivered"; o.statusStage = 2; }
+    await markReceivedByChat(chatId);
     await tgSendMessage(chatId, "✅ Thank you for confirming! We’re glad your order arrived safely. 💙");
     for (const adminId of ADMIN_IDS) {
       await tgSendMessage(adminId, `📦 Customer *${s.name || chatId}* marked the order as *Received*.`, { parse_mode: "Markdown" });
@@ -609,7 +629,7 @@ async function handleMessage(msg) {
   // Admin typed delivery link after "Send Delivery Link"
   if (isAdmin(chatId) && adminState.mode === "await_delivery_link") {
     const id = adminState.deliveryOrderId;
-    const o = findOrder(id);
+    const o = await getOrderById(id);
     adminState.mode = null;
     adminState.deliveryOrderId = null;
     if (!o) return tgSendMessage(chatId, "⚠️ Order not found.");
@@ -619,8 +639,7 @@ async function handleMessage(msg) {
       { reply_markup: { inline_keyboard: [[{ text: "📦 Mark as Received", callback_data: "order:received" }]] } }
     );
     await tgSendMessage(chatId, `✅ Delivery link sent to customer for Order #${id}.`);
-    o.status = "out_for_delivery";
-    o.statusStage = 1;
+    await updateOrderStage(id, 1);
     return;
   }
 
@@ -666,9 +685,17 @@ async function handleMessage(msg) {
   }
   if (text === "/contact") return startContactAdmin(chatId);
   if (text === "/status") {
-    const lastOrder = [...orders].reverse().find(o => o.customerChatId === chatId);
-    if (!lastOrder) return tgSendMessage(chatId, "📦 No orders found yet.");
-    return tgSendMessage(chatId, `📦 Latest order:\n• ID: #${lastOrder.id}\n• Status: ${lastOrder.status}\n• Items:\n${itemsToText(lastOrder.items)}`);
+    try {
+      const latest = await listRecentOrders(200);
+      const lastOrder = latest.find(o => o.customerChatId === chatId);
+      if (!lastOrder) return tgSendMessage(chatId, "📦 No orders found yet.");
+      return tgSendMessage(
+        chatId,
+        `📦 Latest order:\n• ID: #${lastOrder.id}\n• Status: ${lastOrder.status}\n• Items:\n${itemsToText(lastOrder.items || [])}`
+      );
+    } catch {
+      return tgSendMessage(chatId, "⚠️ Unable to fetch your orders right now.");
+    }
   }
 
   // Start (Terms & Conditions gate + Yelo🟡Spot welcome)
@@ -791,8 +818,20 @@ async function handlePhotoOrDocument(msg) {
 
   s.paymentProof = msg.photo ? msg.photo.pop().file_id : msg.document?.file_id;
 
+  // ✅ Persist order in DB
+  const newId = await createOrder({
+    customerChatId: chatId,
+    name: s.name,
+    phone: s.phone,
+    address: s.address,
+    coords: s.coords,
+    items: [...(s.cart || [])],
+    paymentProof: s.paymentProof || null,
+  });
+
+  // Notify admins using a composed object
   const order = {
-    id: nextOrderId++,
+    id: newId,
     customerChatId: chatId,
     name: s.name,
     phone: s.phone,
@@ -804,8 +843,6 @@ async function handlePhotoOrDocument(msg) {
     statusStage: 0,
     createdAt: new Date().toISOString(),
   };
-  orders.push(order);
-
   await notifyAdminsNewOrder(order, msg.from);
 
   s.status = "complete";
@@ -837,12 +874,16 @@ app.post(pathWebhook, async (req, res) => {
 });
 
 // ───────── HEALTH + STARTUP ─────────
-app.get("/health", (_, r) =>
-  r.json({ ok: true, shop_open: SHOP_OPEN, active_sessions: sessions.size, orders: orders.length })
-);
+app.get("/health", async (_, r) => {
+  r.json({ ok: true, shop_open: SHOP_OPEN, active_sessions: sessions.size });
+});
 
 app.listen(PORT, async () => {
   console.log(`🚀 Server running on port ${PORT}`);
+
+  // ✅ Init DB
+  try { await dbInit(); console.log("✅ DB ready"); }
+  catch (e) { console.error("❌ DB init failed:", e); }
 
   // Set webhook
   if (HOST_URL) {

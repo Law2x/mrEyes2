@@ -11,51 +11,42 @@
     --radius:16px;
   }
   *{box-sizing:border-box}
-  html,body{height:100%}
-  body{
-    margin:0; overflow-x:hidden; background:#0f1115; color:var(--text);
-    font:15px/1.45 ui-sans-serif,-apple-system,Segoe UI,Roboto,Arial;
-    -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;
-    background:
-      radial-gradient(1100px 520px at 130% -10%, rgba(255,213,74,.08), transparent 60%),
-      linear-gradient(180deg, #0e1114 0%, #0f1115 100%);
-  }
-
-  /* header */
+  body{margin:0;background:#0f1115;color:var(--text);font:15px/1.45 ui-sans-serif,-apple-system,Segoe UI,Roboto,Arial;overflow-x:hidden}
+  /* Header */
   .bar{position:sticky;top:0;z-index:20;background:rgba(15,17,21,.78);backdrop-filter:blur(8px);border-bottom:1px solid rgba(255,255,255,.06)}
-  .bar__row{max-width:980px;margin:0 auto;padding:10px 14px;display:flex;align-items:center;gap:10px}
-  .logo{display:flex;align-items:center;gap:10px;font-weight:800}
-  .dot{width:12px;height:12px;border-radius:50%;background:radial-gradient(circle at 30% 30%,#fff,#ffe07a 30%,#ffc107 60%,#b58900 100%);box-shadow:0 0 0 3px rgba(255,213,74,.12)}
-  .muted{color:var(--muted);font-weight:600}
-  .spacer{flex:1}
-
-  /* controls (toggle + small refresh stacked) */
-  .controls{display:flex;flex-direction:column;align-items:flex-end;gap:6px}
-  .switch{display:flex;align-items:center;gap:8px;padding:6px 10px;background:var(--panel-2);border-radius:999px;box-shadow:var(--shadow)}
+  .bar__row{max-width:980px;margin:0 auto;padding:10px 14px;display:flex;align-items:center;gap:12px}
+  .brand{flex:1;min-width:0;display:flex;flex-direction:column}
+  .brand__title{display:flex;align-items:center;gap:10px;font-weight:900;font-size:26px;letter-spacing:.2px}
+  .brand__subtitle{margin-top:2px;color:var(--muted);font-weight:700;font-size:12px}
+  .dot{width:12px;height:12px;border-radius:50%;background:radial-gradient(circle at 30% 30%,#fff,#ffe07a 30%,#ffc107 60%,#b58900 100%)}
+  .controls{display:flex;flex-direction:column;align-items:flex-end;gap:8px}
+  /* Toggle pill (same size as refresh) */
+  .switch{height:40px;display:flex;align-items:center;gap:10px;padding:0 12px;background:var(--panel-2);
+          border-radius:999px;box-shadow:var(--shadow);min-width:132px;justify-content:center}
   .switch label{font-weight:800}
-  .toggle{appearance:none;-webkit-appearance:none;width:48px;height:26px;border-radius:999px;background:#2a2f3a;position:relative;outline:none;cursor:pointer;transition:.2s}
+  .toggle{appearance:none;-webkit-appearance:none;width:46px;height:26px;border-radius:999px;background:#2a2f3a;
+          position:relative;outline:none;cursor:pointer;transition:.2s}
   .toggle:before{content:"";position:absolute;top:3px;left:3px;width:20px;height:20px;border-radius:50%;background:#fff;transition:.25s;box-shadow:0 2px 8px rgba(0,0,0,.35)}
   .toggle:checked{background:#1f4d2f}
-  .toggle:checked:before{transform:translateX(22px);background:#34d399}
-  .btn{border:none;color:#0f1115;background:linear-gradient(180deg,#ffe27a,#ffc62b);border-radius:12px;font-weight:800;padding:6px 10px;display:inline-flex;align-items:center;gap:6px;cursor:pointer;box-shadow:var(--shadow);font-size:13px}
-  .btn:active{transform:translateY(1px)}
-
-  /* main wrap */
+  .toggle:checked:before{transform:translateX(20px);background:#34d399}
+  /* Refresh (same height as switch) */
+  .btn{height:40px;display:inline-flex;align-items:center;gap:8px;padding:0 14px;border:none;border-radius:12px;
+       background:linear-gradient(180deg,#ffe27a,#ffc62b);color:#0f1115;font-weight:900;box-shadow:var(--shadow);cursor:pointer}
+  .btn svg{display:block}
+  /* Main */
   .wrap{max-width:980px;margin:0 auto;padding:12px 14px 80px}
-
-  /* METRICS single row (orders + sales on one line) */
-  .metrics{
-    display:flex;gap:10px;align-items:stretch;min-width:0; /* prevent overflow */
-  }
-  .metric{flex:1 1 0;min-width:0;background:var(--panel);border:1px solid rgba(255,255,255,.06);border-radius:14px;box-shadow:var(--shadow);padding:10px}
+  /* Metrics row: shorter cards */
+  .metrics{display:flex;gap:10px;align-items:stretch;min-width:0}
+  .metric{flex:1 1 0;min-width:0;background:var(--panel);border:1px solid rgba(255,255,255,.06);border-radius:14px;box-shadow:var(--shadow);padding:10px 12px}
   .row{display:flex;align-items:center;gap:8px;min-width:0}
   .title{font-weight:800}
-  .select{appearance:none;-webkit-appearance:none;color:var(--text);background:var(--panel-2);border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:8px 10px;font-weight:700;outline:none;min-width:0;max-width:55%}
-  .value{font-size:34px;font-weight:900;margin-top:6px;display:flex;align-items:baseline;gap:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-  .peso{font-size:18px;opacity:.75}
-  .chip{margin-left:auto;background:rgba(255,255,255,.08);border-radius:9px;min-width:26px;height:26px;display:inline-flex;align-items:center;justify-content:center;font-weight:900}
-
-  /* list */
+  .select{appearance:none;-webkit-appearance:none;color:var(--text);background:var(--panel-2);
+          border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:6px 8px;font-weight:700;outline:none;min-width:0}
+  .value{font-size:28px;font-weight:900;margin-top:4px;display:flex;align-items:baseline;gap:6px}
+  .peso{font-size:16px;opacity:.75}
+  .chip{margin-left:8px;background:rgba(255,255,255,.08);border-radius:9px;min-width:26px;height:26px;
+        display:inline-flex;align-items:center;justify-content:center;font-weight:900}
+  /* Orders list (unchanged visuals) */
   .list-title{margin:14px 2px 8px;font-weight:800;color:var(--muted)}
   .order{background:var(--panel);border:1px solid rgba(255,255,255,.06);border-radius:16px;padding:12px;margin-bottom:12px;box-shadow:var(--shadow)}
   .order__head{display:flex;align-items:center;gap:10px;justify-content:space-between}
@@ -72,19 +63,23 @@
   .btn-sm{border:1px solid rgba(255,255,255,.08);background:var(--panel-2);color:var(--text);padding:8px 10px;border-radius:10px;font-weight:800;cursor:pointer}
   .btn-danger{border-color:rgba(239,68,68,.35);color:#ffd1d1}
   select[data-act="stage"]{padding:7px 10px}
-
-  /* small screens tweaks */
   @media (max-width:380px){
-    .value{font-size:28px}
-    .select{max-width:60%}
+    .brand__title{font-size:24px}
+    .value{font-size:24px}
   }
 </style>
 </head>
 <body>
 <header class="bar">
   <div class="bar__row">
-    <div class="logo"><span class="dot"></span>Yelo<span class="dot" style="margin-left:-4px"></span>Spot <span class="muted">— Admin Dashboard</span></div>
-    <div class="spacer"></div>
+    <!-- BIG shop name + small subtitle underneath -->
+    <div class="brand">
+      <div class="brand__title">
+        <span class="dot"></span>Yelo<span class="dot" style="margin-left:-4px"></span>Spot
+      </div>
+      <div class="brand__subtitle">Admin dashboard</div>
+    </div>
+    <!-- Right controls: Shop (same size as Refresh) + Refresh below it -->
     <div class="controls">
       <div class="switch">
         <label>Shop</label>
@@ -107,7 +102,8 @@
       <div class="row">
         <div class="title">Orders</div>
         <span id="ordersCountChip" class="chip">0</span>
-        <select id="ordersFilter" class="select" style="margin-left:auto">
+        <span style="flex:1"></span>
+        <select id="ordersFilter" class="select">
           <option value="all">All</option>
           <option value="confirmed">Order confirmed</option>
           <option value="out_for_delivery">Out for delivery</option>
@@ -121,7 +117,8 @@
     <div class="metric">
       <div class="row">
         <div class="title">Sales</div>
-        <select id="salesRange" class="select" style="margin-left:auto">
+        <span style="flex:1"></span>
+        <select id="salesRange" class="select">
           <option value="today">Today</option>
           <option value="yesterday">Yesterday</option>
           <option value="7d">Last 7 days</option>

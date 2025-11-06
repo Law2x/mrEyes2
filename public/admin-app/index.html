@@ -22,60 +22,53 @@
     </div>
   </header>
 
-  <!-- STATS ROW (always single line) -->
-  <section class="stats-row" id="statsRow">
-    <button class="stat-card" data-filter="all">
-      <div class="stat-value" id="statAll">0</div>
-      <div class="stat-label">All</div>
-    </button>
-    <button class="stat-card" data-filter="confirmed">
-      <div class="stat-value" id="statConfirmed">0</div>
-      <div class="stat-label">Order Confirmed</div>
-    </button>
-    <button class="stat-card" data-filter="out">
-      <div class="stat-value" id="statOut">0</div>
-      <div class="stat-label">Out for Delivery</div>
-    </button>
-    <button class="stat-card" data-filter="delivered">
-      <div class="stat-value" id="statDelivered">0</div>
-      <div class="stat-label">Delivered</div>
-    </button>
-    <button class="stat-card" data-filter="canceled">
-      <div class="stat-value" id="statCanceled">0</div>
-      <div class="stat-label">Canceled</div>
-    </button>
+  <!-- TWO COMPACT CARDS -->
+  <section class="top-cards">
+    <!-- Orders card -->
+    <div class="card stat">
+      <div class="row">
+        <div class="label">Orders</div>
+        <select id="ordersFilter" class="select">
+          <option value="all">All</option>
+          <option value="confirmed">Order confirmed</option>
+          <option value="out">Out for delivery</option>
+          <option value="delivered">Delivered</option>
+          <option value="canceled">Canceled</option>
+        </select>
+      </div>
+      <div class="value" id="ordersCount">0</div>
+    </div>
 
-    <!-- Sales tracker card -->
-    <div class="stat-card sales" tabindex="-1">
-      <div class="sales-top">
-        <div class="stat-label">Sales</div>
-        <select id="salesRange" class="sales-range">
+    <!-- Sales card -->
+    <div class="card stat">
+      <div class="row">
+        <div class="label">Sales</div>
+        <select id="salesRange" class="select">
           <option value="today">Today</option>
           <option value="week">Week</option>
           <option value="month">Month</option>
           <option value="all" selected>All</option>
         </select>
       </div>
-      <div class="stat-value" id="statSales">₱0</div>
+      <div class="value" id="salesValue">₱0</div>
     </div>
   </section>
 
-  <!-- FILTER STRIP (shows which list you’re viewing) -->
+  <!-- Filter hint -->
   <section class="filter-bar">
     <div id="activeFilter">All orders</div>
   </section>
 
-  <!-- ORDERS -->
+  <!-- ORDERS LIST -->
   <main id="ordersList" class="orders"></main>
 
+  <!-- Card template -->
   <template id="orderCardTmpl">
-    <article class="card">
-      <div class="card-head">
-        <div class="badges">
+    <article class="card order">
+      <div class="head">
+        <div class="left">
           <span class="badge id">#1</span>
-          <span class="badge recvd" title="Received from customer">
-            📅 <span class="rcvdtxt"></span>
-          </span>
+          <span class="badge recvd">📅 <span class="rcvdtxt"></span></span>
         </div>
         <div class="chips"></div>
       </div>

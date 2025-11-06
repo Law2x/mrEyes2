@@ -4,53 +4,101 @@
   <meta charset="utf-8" />
   <meta
     name="viewport"
-    content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover"
-  />
+    content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"
+/>
   <title>Yelo🟡Spot — Admin Dashboard</title>
   <link rel="stylesheet" href="./style.css" />
-  <script src="https://telegram.org/js/telegram-web-app.js"></script>
 </head>
 <body>
-  <header class="topbar glass">
+  <header class="appbar">
     <div class="brand">
-      <span class="logo-dot">●</span>
-      <span class="brand-name">Yelo<span class="y">🟡</span>Spot</span>
-      <span class="divider">—</span>
-      <span class="brand-sub">Admin Dashboard</span>
+      <span class="dot">🟡</span>
+      <span class="name">YeloSpot</span>
+      <span class="sub">— Admin Dashboard</span>
     </div>
-    <div class="topbar-actions">
-      <div class="last-updated" id="lastUpdated">Last updated: —</div>
-      <button id="refreshBtn" class="btn pill primary">↻ Refresh</button>
+    <div class="right">
+      <div id="lastUpdated" class="muted"></div>
+      <button id="btnRefresh" class="pill">⟳ Refresh</button>
     </div>
   </header>
 
-  <!-- Clickable status counters -->
-  <section class="stats-row">
+  <!-- STATS ROW (always single line) -->
+  <section class="stats-row" id="statsRow">
     <button class="stat-card" data-filter="all">
       <div class="stat-value" id="statAll">0</div>
       <div class="stat-label">All</div>
     </button>
-    <button class="stat-card" data-filter="0">
+    <button class="stat-card" data-filter="confirmed">
       <div class="stat-value" id="statConfirmed">0</div>
       <div class="stat-label">Order Confirmed</div>
     </button>
-    <button class="stat-card" data-filter="1">
-      <div class="stat-value" id="statOutForDelivery">0</div>
+    <button class="stat-card" data-filter="out">
+      <div class="stat-value" id="statOut">0</div>
       <div class="stat-label">Out for Delivery</div>
     </button>
-    <button class="stat-card" data-filter="2">
+    <button class="stat-card" data-filter="delivered">
       <div class="stat-value" id="statDelivered">0</div>
       <div class="stat-label">Delivered</div>
     </button>
-    <button class="stat-card" data-filter="-1">
+    <button class="stat-card" data-filter="canceled">
       <div class="stat-value" id="statCanceled">0</div>
       <div class="stat-label">Canceled</div>
     </button>
+
+    <!-- Sales tracker card -->
+    <div class="stat-card sales" tabindex="-1">
+      <div class="sales-top">
+        <div class="stat-label">Sales</div>
+        <select id="salesRange" class="sales-range">
+          <option value="today">Today</option>
+          <option value="week">Week</option>
+          <option value="month">Month</option>
+          <option value="all" selected>All</option>
+        </select>
+      </div>
+      <div class="stat-value" id="statSales">₱0</div>
+    </div>
   </section>
 
-  <main id="orders" class="orders"></main>
+  <!-- FILTER STRIP (shows which list you’re viewing) -->
+  <section class="filter-bar">
+    <div id="activeFilter">All orders</div>
+  </section>
 
-  <div id="toast" class="toast" hidden></div>
-  <script src="./app.js"></script>
+  <!-- ORDERS -->
+  <main id="ordersList" class="orders"></main>
+
+  <template id="orderCardTmpl">
+    <article class="card">
+      <div class="card-head">
+        <div class="badges">
+          <span class="badge id">#1</span>
+          <span class="badge recvd" title="Received from customer">
+            📅 <span class="rcvdtxt"></span>
+          </span>
+        </div>
+        <div class="chips"></div>
+      </div>
+
+      <h3 class="title"></h3>
+      <div class="addr"></div>
+      <div class="items"></div>
+
+      <div class="actions">
+        <button class="btn ghost send-link">Send link</button>
+        <div class="select-wrap">
+          <select class="stage">
+            <option value="0">Order confirmed</option>
+            <option value="1">Out for delivery</option>
+            <option value="2">Delivered</option>
+            <option value="-1">Canceled</option>
+          </select>
+        </div>
+        <button class="btn danger cancel">Cancel</button>
+      </div>
+    </article>
+  </template>
+
+  <script src="./app.js" type="module"></script>
 </body>
 </html>

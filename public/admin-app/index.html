@@ -5,83 +5,123 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Yelo🟡Spot — Admin</title>
 <style>
+/* ==== THEME ==== */
 :root{
-  --bg:#0f1115;
-  --panel:#161a21;
-  --panel-2:#1b2029;
-  --border:#212735;
-  --muted:#8b93a7;
-  --text:#e9edf5;
-  --brand:#ffd54d;
-  --accent:#ffc400;
-  --success:#18c37e;
-  --warning:#edb64f;
-  --danger:#ff5c6c;
-  --ctrl-h:32px;
-  --radius:12px;
-  --radius-sm:10px;
-  --gap:12px;
+  --bg:#0f1115; --panel:#161a21; --panel-2:#1b2029; --border:#212735;
+  --muted:#93a0b8; --text:#eef3fb; --brand:#ffd54d; --accent:#ffc400;
+  --success:#18c37e; --danger:#ff5c6c;
+  --r:12px; --r-sm:10px; --gap:12px; --max:980px;
 }
+
+/* ==== BASE ==== */
 *{box-sizing:border-box}
-html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font:14px/1.4 system-ui,-apple-system,Segoe UI,Roboto,Arial}
-.bar{position:sticky;top:0;z-index:10;background:rgba(15,17,21,.9);backdrop-filter:blur(8px);border-bottom:1px solid rgba(255,255,255,.05)}
-.bar__row{max-width:960px;margin:0 auto;padding:6px 14px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap}
+html,body{margin:0;background:var(--bg);color:var(--text);font:14px/1.35 system-ui,-apple-system,Segoe UI,Roboto,Arial}
+h1,h2,h3,p{margin:0}
+small{color:var(--muted)}
+.wrap{max-width:var(--max);margin:0 auto;padding:0 14px}
+.nowrap{white-space:nowrap}
+.ellipsis{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.break{overflow-wrap:anywhere}
+
+/* ==== TOP BAR ==== */
+.bar{position:sticky;top:0;z-index:5;background:rgba(15,17,21,.92);backdrop-filter:blur(8px);border-bottom:1px solid rgba(255,255,255,.06)}
+.bar__row{display:flex;align-items:center;justify-content:space-between;padding:8px 14px}
 .brand{display:flex;align-items:center;gap:10px}
 .brand__dot{width:10px;height:10px;border-radius:50%;background:radial-gradient(circle at 30% 30%,#fff6a3 0%,#ffd54d 50%,#b78b00 100%)}
-.brand__title{font-weight:900;font-size:24px;letter-spacing:.2px}
-.brand__subtitle{color:var(--muted);font-size:11px;margin-left:4px}
-.controls{display:flex;flex-direction:column;align-items:flex-end;gap:6px}
-.switch,.btn{height:var(--ctrl-h);display:flex;align-items:center;gap:8px;padding:0 12px;border-radius:var(--radius-sm);font-weight:800}
-.switch{background:var(--panel-2);border:1px solid var(--border)}
-.toggle{width:40px;height:22px;border-radius:20px;background:#2a2f3a;position:relative;transition:.2s}
-.toggle:before{content:"";position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;background:#fff;transition:.2s}
+.brand__stack{display:flex;flex-direction:column}
+.brand__title{font-weight:900;letter-spacing:.2px;font-size:clamp(18px,3.5vw,26px)}
+.brand__subtitle{color:var(--muted);font-size:clamp(10px,2.3vw,12px);margin-top:2px}
+
+.controls{display:flex;align-items:center;gap:10px}
+.pill{height:clamp(26px,5vw,34px);display:flex;align-items:center;gap:8px;padding:0 clamp(10px,2.5vw,12px);border-radius:999px}
+.switch{background:#1e2330;border:1px solid var(--border);font-weight:800}
+.toggle{width:clamp(36px,8vw,42px);height:clamp(18px,4vw,22px);border-radius:20px;background:#2a2f3a;position:relative;transition:.18s;flex:0 0 auto}
+.toggle:before{content:"";position:absolute;top:2px;left:2px;width:clamp(14px,3.5vw,18px);height:clamp(14px,3.5vw,18px);border-radius:50%;background:#fff;transition:.18s}
 .toggle.on{background:#1f5f3e}
-.toggle.on:before{transform:translateX(20px);background:#34d399}
-.btn{background:linear-gradient(180deg,#ffd86b,#ffc400);color:#242400;border:none;cursor:pointer;font-size:12px;box-shadow:0 2px 4px rgba(0,0,0,.3)}
-.section{max-width:960px;margin:10px auto;padding:0 14px}
-.metrics{display:flex;gap:var(--gap);flex-wrap:nowrap;justify-content:space-between;align-items:stretch}
-.metric{flex:1;background:var(--panel-2);border:1px solid var(--border);border-radius:var(--radius);padding:10px 12px;min-width:0;box-shadow:0 4px 12px rgba(0,0,0,.4)}
-.metric__head{display:flex;justify-content:space-between;align-items:center}
-.metric__title{font-weight:800;font-size:16px}
-.value{font-size:26px;font-weight:900;margin-top:2px}
-.select{appearance:none;background:#232938;color:var(--text);border:1px solid var(--border);border-radius:8px;padding:5px 8px;font-size:13px;font-weight:700}
-.h2{font-weight:800;margin:16px 0 10px}
-.card{background:var(--panel);border:1px solid var(--border);border-radius:var(--radius);padding:12px;margin-bottom:12px;box-shadow:0 6px 16px rgba(0,0,0,.35)}
-.badge{display:inline-flex;align-items:center;padding:4px 10px;border-radius:999px;font-weight:800;font-size:12px}
+.toggle.on:before{transform:translateX(clamp(16px,3.7vw,20px));background:#34d399}
+.btn{background:linear-gradient(180deg,#ffd86b,#ffc400);color:#242400;border:none;cursor:pointer;font-weight:800}
+
+/* ==== SECTION ==== */
+.section{padding:12px 0}
+
+/* ==== METRICS ROW (ALWAYS TWO COLUMNS) ==== */
+.metrics{
+  display:grid;
+  grid-template-columns: minmax(0,1fr) minmax(0,1fr);
+  gap:var(--gap);
+}
+.metric{
+  background:var(--panel-2); border:1px solid var(--border); border-radius:var(--r);
+  padding:clamp(8px,2.5vw,12px); box-shadow:0 4px 12px rgba(0,0,0,.35);
+  min-height:clamp(78px,17vw,92px);
+}
+.metric__head{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;gap:8px}
+.metric__title{font-weight:800;font-size:clamp(13px,2.8vw,16px)}
+.value{font-size:clamp(22px,6vw,28px);font-weight:900;letter-spacing:.4px}
+
+/* Selects scale, never overflow */
+.select{
+  appearance:none;background:#232938;color:var(--text);border:1px solid var(--border);
+  border-radius:8px;padding:clamp(4px,1vw,6px) clamp(8px,2vw,10px);
+  font-size:clamp(11px,2.7vw,13px);font-weight:700;max-width:60%;
+}
+
+/* Headings */
+.h2{font-weight:900;margin:18px 0 10px;font-size:clamp(18px,5vw,22px)}
+
+/* ==== ORDER CARD ==== */
+.card{
+  background:var(--panel);border:1px solid var(--border);border-radius:var(--r);
+  padding:clamp(10px,2.6vw,12px); margin-bottom:12px; box-shadow:0 6px 16px rgba(0,0,0,.35)
+}
+.row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.badge{display:inline-flex;align-items:center;padding:4px 10px;border-radius:999px;font-weight:800;font-size:clamp(11px,2.8vw,12px)}
+.badge--muted{background:#1f2430;color:#9aa3b7}
 .badge--ok{background:#0f2a23;color:#b0ffda}
 .badge--warn{background:#2a2413;color:#ffe0a6}
-.badge--muted{background:#1f2430;color:#9aa3b7}
-.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;justify-content:space-between}
-.btn--small{padding:6px 10px;border-radius:8px;font-weight:700;font-size:12px;cursor:pointer;border:none}
-.btn--ghost{background:#232938;color:var(--text)}
-.btn--danger{background:#ff5c6c;color:#fff}
-@media(max-width:480px){.metrics{flex-direction:column}}
+.title{font-weight:800;font-size:clamp(14px,3.8vw,16px);margin:6px 0}
+.addr{color:var(--muted);font-size:clamp(12px,3.3vw,14px)}
+.item{margin:4px 0;font-size:clamp(12px,3.3vw,14px)}
+.btn-sm{border:none;border-radius:8px;padding:7px 12px;font-size:clamp(11px,3vw,12px);font-weight:700;cursor:pointer}
+.btn-ghost{background:#232938;color:var(--text)}
+.btn-danger{background:var(--danger);color:#fff}
+
+/* Prevent any horizontal scroll */
+html,body{overflow-x:hidden}
+.wrap,.metrics,.metric,.card{min-width:0}
 </style>
 </head>
 <body>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
-<header class="bar">
-  <div class="bar__row">
+
+<!-- ====== TOP BAR ====== -->
+<div class="bar">
+  <div class="bar__row wrap">
     <div class="brand">
       <span class="brand__dot"></span>
-      <div>
+      <div class="brand__stack">
         <div class="brand__title">Yelo🟡Spot</div>
         <div class="brand__subtitle">Admin dashboard</div>
       </div>
     </div>
     <div class="controls">
-      <div class="switch"><label>Shop</label><div id="shopToggle" class="toggle"></div></div>
-      <button id="btnRefresh" class="btn">⟳ Refresh</button>
+      <div class="pill switch">
+        <span style="font-weight:800;font-size:clamp(12px,3.2vw,14px)">Shop</span>
+        <div id="shopToggle" class="toggle" role="switch" aria-checked="false" tabindex="0"></div>
+      </div>
+      <button id="btnRefresh" class="pill btn" style="font-size:clamp(12px,3.2vw,14px)">⟳ Refresh</button>
     </div>
   </div>
-</header>
+</div>
 
-<section class="section">
-  <div class="metrics">
+<!-- ====== CONTENT ====== -->
+<div class="wrap section">
+  <div class="metrics" id="metricsRow">
+    <!-- Orders -->
     <div class="metric">
       <div class="metric__head">
         <div class="metric__title">Orders</div>
-        <select id="ordersFilter" class="select">
+        <select id="ordersFilter" class="select" aria-label="Orders filter">
           <option value="all">All</option>
           <option value="confirmed">Confirmed</option>
           <option value="out">Out for delivery</option>
@@ -91,10 +131,12 @@ html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font:14px/1.
       </div>
       <div class="value" id="ordersCount">0</div>
     </div>
+
+    <!-- Sales -->
     <div class="metric">
       <div class="metric__head">
         <div class="metric__title">Sales</div>
-        <select id="salesRange" class="select">
+        <select id="salesRange" class="select" aria-label="Sales range">
           <option value="today">Today</option>
           <option value="week">This week</option>
           <option value="month">This month</option>
@@ -107,51 +149,124 @@ html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font:14px/1.
 
   <h2 class="h2">All orders</h2>
   <div id="ordersList"></div>
-</section>
+</div>
 
 <script>
-const tg = window.Telegram?.WebApp; tg?.ready?.(); tg?.expand?.();
-const authHeaders=()=>({'X-Telegram-Init-Data':tg?.initData||'', 'Content-Type':'application/json'});
-let ORDERS=[];
-async function fetchOrders(){
- try{const r=await fetch('/api/admin/orders',{headers:authHeaders()});
- const j=await r.json(); if(!j.ok) throw 0; ORDERS=j.orders||[]; renderAll();}
- catch(e){console.error(e); document.getElementById('ordersList').innerHTML='<div>No orders</div>';}}
-function fmtPeso(n){return Math.round(n).toLocaleString('en-PH');}
-function orderKey(s){if(s===-1)return'canceled';if(s===1)return'out';if(s===2)return'delivered';return'confirmed';}
-function saleAmount(items){let sum=0;for(const i of(items||[])){const m=(i.amount||'').match(/₱\s*([\d,]+)/);if(m)sum+=+m[1].replace(/,/g,'');}return sum;}
-function insideRange(dISO,r){const t=new Date(dISO),n=new Date();if(r==='today'){const a=new Date(n.getFullYear(),n.getMonth(),n.getDate());const b=new Date(a);b.setDate(a.getDate()+1);return t>=a&&t<b;}if(r==='week'){const a=new Date(n);a.setDate(n.getDate()-n.getDay());a.setHours(0,0,0,0);const b=new Date(a);b.setDate(a.getDate()+7);return t>=a&&t<b;}if(r==='month'){const a=new Date(n.getFullYear(),n.getMonth(),1);const b=new Date(n.getFullYear(),n.getMonth()+1,1);return t>=a&&t<b;}return!0;}
-function renderAll(){const f=document.getElementById('ordersFilter').value;const s=document.getElementById('salesRange').value;
-const list=ORDERS.filter(o=>f==='all'||orderKey(o.statusStage)===f);document.getElementById('ordersCount').textContent=list.length;
-const sales=ORDERS.filter(o=>orderKey(o.statusStage)==='delivered'&&insideRange(o.createdAt,s))
-.reduce((a,o)=>a+saleAmount(o.items),0);document.getElementById('salesValue').textContent=fmtPeso(sales);
-const wrap=document.getElementById('ordersList');
-wrap.innerHTML=list.map(o=>`
-<div class="card">
- <div class="row">
-   <span class="badge badge--muted">#${o.id}</span>
-   <span class="badge ${orderKey(o.statusStage)==='delivered'?'badge--ok':orderKey(o.statusStage)==='out'?'badge--warn':'badge--muted'}">
-     ${orderKey(o.statusStage).replace('_',' ')}
-   </span>
-   <span class="badge">${new Date(o.createdAt).toLocaleString()}</span>
- </div>
- <div style="font-weight:800;font-size:16px;margin:6px 0">${o.name||'Customer'} • ${o.phone||''}</div>
- <div style="color:var(--muted)">${o.address||''}</div>
- <div style="margin:6px 0">${(o.items||[]).map(i=>`• ${i.category} — ${i.amount}`).join('<br>')}</div>
- <div class="row">
-   <button class="btn--small btn--ghost">Send link</button>
-   <button class="btn--small btn--danger">Cancel</button>
- </div>
-</div>`).join('');
-}
-document.getElementById('ordersFilter').onchange=renderAll;
-document.getElementById('salesRange').onchange=renderAll;
-document.getElementById('btnRefresh').onclick=fetchOrders;
-document.getElementById('shopToggle').onclick=e=>{
- e.target.classList.toggle('on');
- fetch('/api/admin/shop',{method:'POST',headers:authHeaders(),body:JSON.stringify({open:e.target.classList.contains('on')})});
-};
-fetchOrders();
+  const tg = window.Telegram?.WebApp; tg?.ready?.(); tg?.expand?.();
+
+  const authHeaders = () => ({
+    'X-Telegram-Init-Data': tg?.initData || '',
+    'Content-Type': 'application/json'
+  });
+
+  let ORDERS = [];
+
+  // ---- Fetch & render ----
+  async function fetchOrders(){
+    try{
+      const r = await fetch('/api/admin/orders', { headers: authHeaders() });
+      const j = await r.json();
+      if(!j.ok) throw new Error('not ok');
+      ORDERS = j.orders || [];
+      renderAll();
+    }catch(e){
+      console.error('Auth/DB error loading orders', e);
+      document.getElementById('ordersList').innerHTML =
+        '<div class="card">Auth/DB error loading orders</div>';
+    }
+  }
+
+  const peso = n => Math.round(n).toLocaleString('en-PH');
+  const keyByStage = s => (s===-1?'canceled':s===1?'out':s===2?'delivered':'confirmed');
+
+  function saleFromItems(items){
+    let sum = 0;
+    for(const it of (items||[])){
+      const m = (it.amount||'').match(/₱\s*([\d,]+)/);
+      if(m) sum += Number(m[1].replace(/,/g,''));
+    }
+    return sum;
+  }
+
+  function inRange(iso, range){
+    const t = new Date(iso), now = new Date();
+    if(range==='today'){
+      const a = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const b = new Date(a); b.setDate(a.getDate()+1);
+      return t>=a && t<b;
+    }
+    if(range==='week'){
+      const a = new Date(now); a.setDate(now.getDate() - now.getDay()); a.setHours(0,0,0,0);
+      const b = new Date(a); b.setDate(a.getDate()+7);
+      return t>=a && t<b;
+    }
+    if(range==='month'){
+      const a = new Date(now.getFullYear(), now.getMonth(), 1);
+      const b = new Date(now.getFullYear(), now.getMonth()+1, 1);
+      return t>=a && t<b;
+    }
+    return true;
+  }
+
+  function renderAll(){
+    // Orders count by filter
+    const f = document.getElementById('ordersFilter').value;
+    const filtered = ORDERS.filter(o => f==='all' || keyByStage(o.statusStage)===f);
+    document.getElementById('ordersCount').textContent = filtered.length;
+
+    // Sales
+    const range = document.getElementById('salesRange').value;
+    const sales = ORDERS
+      .filter(o => keyByStage(o.statusStage)==='delivered' && inRange(o.createdAt, range))
+      .reduce((a,o)=>a + saleFromItems(o.items), 0);
+    document.getElementById('salesValue').textContent = peso(sales);
+
+    // List
+    const list = document.getElementById('ordersList');
+    list.innerHTML = filtered.map(o => {
+      const stage = keyByStage(o.statusStage);
+      const badgeClass = stage==='delivered' ? 'badge--ok' :
+                         stage==='out'       ? 'badge--warn' : 'badge--muted';
+      return `
+      <div class="card">
+        <div class="row">
+          <span class="badge badge--muted">#${o.id}</span>
+          <span class="badge ${badgeClass}">${stage}</span>
+          <span class="badge badge--muted">${new Date(o.createdAt).toLocaleString()}</span>
+        </div>
+        <div class="title ellipsis">${o.name || 'Customer'} • ${o.phone || ''}</div>
+        <div class="addr break">${o.address || ''}</div>
+        <div class="item break">${(o.items||[]).map(i=>`• ${i.category} — ${i.amount}`).join('<br>')}</div>
+        <div class="row" style="margin-top:6px">
+          <button class="btn-sm btn-ghost">Send link</button>
+          <button class="btn-sm btn-danger">Cancel</button>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  // UI events
+  document.getElementById('ordersFilter').addEventListener('change', renderAll);
+  document.getElementById('salesRange').addEventListener('change', renderAll);
+  document.getElementById('btnRefresh').addEventListener('click', fetchOrders);
+
+  // Shop toggle (same compact size as Refresh)
+  const shopToggle = document.getElementById('shopToggle');
+  async function setShop(open){
+    try{ await fetch('/api/admin/shop', { method:'POST', headers:authHeaders(), body:JSON.stringify({ open }) }); }
+    catch(e){ console.warn('toggle shop failed', e); }
+  }
+  function flip(){
+    shopToggle.classList.toggle('on');
+    const on = shopToggle.classList.contains('on');
+    shopToggle.setAttribute('aria-checked', on ? 'true':'false');
+    setShop(on);
+  }
+  shopToggle.addEventListener('click', flip);
+  shopToggle.addEventListener('keydown', e => { if(e.key==='Enter'||e.key===' ') { e.preventDefault(); flip(); } });
+
+  // Start
+  fetchOrders();
 </script>
 </body>
 </html>

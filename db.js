@@ -1,48 +1,133 @@
-// db.js (ESM)
-import Database from "better-sqlite3";
+// db.js
+import pkgPg from "pg";
+const { Pool } = pkgPg;
 
-export const db = new Database(process.env.SQLITE_PATH || "data.db");
+// ---- CONFIG ----
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: process.env.PGSSLMODE ? { rejectUnauthorized: false } : undefined,
+});
 
-// Create tables & trigger once
-db.exec(`
-PRAGMA journal_mode = WAL;
+// ---- INIT ----
+export async function dbInit() {
+  await pool.query(`
+    create table if not exists orders (
+      id serial primary key,
+      customer_chat_id bigint not null,
+      name text,
+      phone text,
+      address text,
+      coords_lat double precision,
+      coords_lon double precision,
+      items jsonb not null default '[]',
+      payment_proof text,
+      status text not null default 'paid',         -- 'paid' | 'out_for_delivery' | 'completed' | 'canceled'
+      status_stage int not null default 0,         -- -1=canceled, 0=preparing, 1=out, 2=delivered
+      delivery_link text,
+      created_at timestamptz not null default now(),
+      updated_at timestamptz not null default now()
+    );
+    create index if not exists idx_orders_created_at on orders(created_at desc);
+  `);
+}
 
-CREATE TABLE IF NOT EXISTS orders (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  customer_chat_id INTEGER NOT NULL,
-  name TEXT,
-  phone TEXT,
-  address TEXT,
-  lat REAL,
-  lon REAL,
-  items_json TEXT NOT NULL,
-  payment_proof_file_id TEXT,
-  delivery_link TEXT,
-  status TEXT NOT NULL DEFAULT 'created', -- created|paid|complete|delivered|canceled
-  created_at TEXT NOT NULL DEFAULT (datetime('now')),
-  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-);
+// ---- HELPERS ----
+const mapRow = (r) => ({
+  id: r.id,
+  customerChatId: r.customer_chat_id,
+  name: r.name,
+  phone: r.phone,
+  address: r.address,
+  coordsLat: r.coords_lat,
+  coordsLon: r.coords_lon,
+  items: Array.isArray(r.items) ? r.items : (r.items ? JSON.parse(r.items) : []),
+  paymentProof: r.payment_proof,
+  status: r.status,
+  statusStage: r.status_stage,
+  deliveryLink: r.delivery_link,
+  createdAt: r.created_at,
+  updatedAt: r.updated_at,
+});
 
-CREATE TRIGGER IF NOT EXISTS orders_updated_at
-AFTER UPDATE ON orders
-BEGIN
-  UPDATE orders SET updated_at = datetime('now') WHERE id = NEW.id;
-END;
+// ---- CRUD ----
+export async function createOrder({
+  customerChatId, name, phone, address, coords, items, paymentProof
+}) {
+  const res = await pool.query(
+    `insert into orders
+      (customer_chat_id, name, phone, address, coords_lat, coords_lon, items, payment_proof, status, status_stage)
+     values ($1,$2,$3,$4,$5,$6,$7,$8,'paid',0)
+     returning id`,
+    [
+      customerChatId,
+      name || null,
+      phone || null,
+      address || null,
+      coords?.latitude ?? null,
+      coords?.longitude ?? null,
+      JSON.stringify(items || []),
+      paymentProof || null,
+    ]
+  );
+  return res.rows[0].id;
+}
 
-CREATE TABLE IF NOT EXISTS kv (
-  key TEXT PRIMARY KEY,
-  value TEXT NOT NULL
-);
+export async function listRecentOrders(limit = 50) {
+  const r = await pool.query(
+    `select id, customer_chat_id, name, phone, address,
+            coords_lat, coords_lon, items, payment_proof,
+            status, status_stage, delivery_link, created_at, updated_at
+     from orders
+     order by created_at desc
+     limit $1`,
+    [limit]
+  );
+  return r.rows.map(mapRow);
+}
 
-INSERT OR IGNORE INTO kv(key,value) VALUES ('shop_open','1');
-`);
+export async function getOrderById(id) {
+  const r = await pool.query(
+    `select id, customer_chat_id, name, phone, address,
+            coords_lat, coords_lon, items, payment_proof,
+            status, status_stage, delivery_link, created_at, updated_at
+     from orders where id=$1`,
+    [id]
+  );
+  if (r.rowCount === 0) return null;
+  return mapRow(r.rows[0]);
+}
 
-// Small helpers
-export const kvGet = (k) => {
-  const row = db.prepare(`SELECT value FROM kv WHERE key = ?`).get(k);
-  return row ? row.value : null;
-};
-export const kvSet = (k, v) => {
-  db.prepare(`INSERT INTO kv(key,value) VALUES (?,?)
-              ON CONFLICT(key) DO UPDATE SET value=excluded.value`).run(k, v);
-};
+export async function updateOrderStage(id, stage) {
+  // stage: -1, 0, 1, 2
+  await pool.query(
+    `update orders set
+       status_stage=$1,
+       status=case
+         when $1 = -1 then 'canceled'
+         when $1 = 0  then 'paid'
+         when $1 = 1  then 'out_for_delivery'
+         when $1 = 2  then 'completed'
+       end,
+       updated_at=now()
+     where id=$2`,
+    [stage, id]
+  );
+}
+
+export async function setDeliveryLink(id, link) {
+  await pool.query(
+    `update orders set delivery_link=$1, status_stage=1, status='out_for_delivery', updated_at=now()
+     where id=$2`,
+    [link, id]
+  );
+}
+
+export async function markReceivedByChat(customerChatId) {
+  await pool.query(
+    `update orders
+       set status_stage=2, status='completed', updated_at=now()
+     where customer_chat_id=$1
+       and status_stage <> -1`,
+    [customerChatId]
+  );
+}

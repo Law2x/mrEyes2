@@ -2,404 +2,52 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Yelo🟡Spot — Admin Dashboard</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <style>
-    :root {
-      color-scheme: dark;
-      --bg: #07070a;
-      --glass: rgba(18,18,26,0.55);
-      --glass-strong: rgba(18,18,26,0.7);
-      --stroke: rgba(255,255,255,0.08);
-      --stroke-2: rgba(255,255,255,0.12);
-      --text: #eef1f6;
-      --muted: #aeb3bf;
-      --accent: #ffd02a;
-      --danger: #f04d4d;
-      --chip: rgba(255,255,255,0.06);
-      --chip-stroke: rgba(255,255,255,0.12);
-      --btn-stroke: rgba(255,255,255,0.12);
-      --disabled: rgba(255,255,255,0.35);
-      --shadow: 0 10px 40px rgba(0,0,0,.45), inset 0 1px 0 rgba(255,255,255,0.03);
-      --glass-blur: 16px;
-      --glass-radius: 16px;
-      --spring: cubic-bezier(.2,.8,.2,1);
-    }
-
-    * { box-sizing: border-box; }
-    html, body { height: 100%; }
-    body {
-      margin: 0;
-      font-family: ui-sans-serif, -apple-system, "SF Pro Text", Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
-      color: var(--text);
-      background:
-        radial-gradient(1200px 800px at 20% -10%, #0d1020 20%, transparent 60%),
-        radial-gradient(1400px 1000px at 120% 20%, #10131e 10%, transparent 55%),
-        linear-gradient(180deg, #050508, #0a0a0f 60%, #07070a);
-      overflow-x: hidden;
-    }
-
-    /* Liquid crystal blobs */
-    .blob {
-      position: fixed; inset: auto auto -20% -10%;
-      width: 60vmax; height: 60vmax; pointer-events: none; filter: blur(60px);
-      background:
-        radial-gradient(closest-side, rgba(255,208,42,0.08), transparent 70%),
-        radial-gradient(closest-side, rgba(88,128,255,0.06), transparent 60%),
-        radial-gradient(closest-side, rgba(255,89,146,0.05), transparent 60%);
-      animation: float 18s ease-in-out infinite alternate;
-      opacity: .8; z-index: 0;
-    }
-    .blob.bl2 { inset: -15% -20% auto auto; width: 45vmax; height: 45vmax; animation-duration: 22s; animation-delay: -4s; }
-    @keyframes float { from { transform: translate3d(0,0,0) scale(1); } to { transform: translate3d(5%, -4%, 0) scale(1.05); } }
-
-    header {
-      position: sticky; top: 0; z-index: 10;
-      backdrop-filter: blur(var(--glass-blur));
-      background: linear-gradient(180deg, rgba(10,10,16,0.85), rgba(10,10,16,0.55));
-      border-bottom: 1px solid var(--stroke);
-      padding: 14px 16px;
-      display: grid;
-      grid-template-columns: auto 1fr auto;
-      align-items: center;
-      gap: 12px;
-      box-shadow: var(--shadow);
-      transition: box-shadow .4s ease;
-    }
-    .left { display: flex; align-items: center; gap: 12px; }
-    .dot { width: 12px; height: 12px; border-radius: 999px; background: var(--accent); box-shadow: 0 0 24px rgba(255,208,42,.7), 0 0 4px rgba(255,208,42,1); transition: box-shadow .4s ease; }
-    body.pulse header .dot { box-shadow: 0 0 30px rgba(255,208,42,.95), 0 0 12px rgba(255,208,42,1); }
-    .title { font-weight: 800; letter-spacing: .2px; font-size: 16px; }
-    .sub { color: var(--muted); font-size: 12px; margin-top: 2px; }
-    #bar { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
-    .pill {
-      font-size: 12px; padding: 6px 10px; border-radius: 999px;
-      background: var(--chip); border: 1px solid var(--chip-stroke);
-      box-shadow: inset 0 1px 0 rgba(255,255,255,0.05);
-    }
-
-    .right { display:flex; align-items:center; gap:8px; }
-    .label-updated { color: var(--muted); font-size: 12px; }
-    .btn-refresh {
-      appearance: none; border: 1px solid var(--btn-stroke);
-      color: #111; background: linear-gradient(180deg, rgba(255,208,42,0.95), rgba(255,208,42,0.78));
-      border-radius: 999px; padding: 8px 12px; font-size: 12px; cursor: pointer;
-      box-shadow: var(--shadow);
-      transition: transform .12s var(--spring), box-shadow .2s var(--spring);
-    }
-    .btn-refresh:active { transform: scale(.98); }
-
-    main { padding: 16px; position: relative; z-index: 1; }
-
-    .card {
-      background: linear-gradient(180deg, rgba(20,20,28,0.55), rgba(17,17,24,0.6));
-      border: 1px solid var(--stroke-2);
-      border-radius: var(--glass-radius);
-      padding: 14px; margin: 12px 0;
-      box-shadow: var(--shadow);
-      backdrop-filter: blur(var(--glass-blur));
-      transition: transform .25s var(--spring), box-shadow .25s var(--spring), border-color .25s var(--spring), opacity .2s ease, filter .2s ease;
-      transform-style: preserve-3d;
-      will-change: transform;
-    }
-    .card:hover { transform: translateY(-2px) rotateX(1.2deg) rotateY(-1.2deg); border-color: rgba(255,255,255,0.16); box-shadow: 0 20px 50px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,0.04); }
-    .card.disabled { opacity: .55; filter: grayscale(25%); border-color: rgba(255,255,255,0.08); transform: none !important; }
-
-    .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
-    .tag {
-      font-size: 12px; padding: 4px 10px; border-radius: 999px;
-      background: linear-gradient(180deg, rgba(30,30,40,0.55), rgba(25,25,35,0.6));
-      border: 1px solid var(--stroke-2);
-      box-shadow: inset 0 1px 0 rgba(255,255,255,0.05);
-    }
-    .items { font-size: 13px; color: var(--text); opacity: .92; margin-top: 8px; white-space: pre-wrap; }
-    .muted { color: var(--muted); }
-    .empty {
-      opacity: .75; text-align: center; padding: 32px 12px;
-      border: 1px dashed var(--stroke); border-radius: var(--glass-radius);
-      background: linear-gradient(180deg, rgba(20,20,28,0.3), rgba(17,17,24,0.35));
-      backdrop-filter: blur(10px);
-    }
-
-    .btns { display: flex; gap: 10px; margin-top: 12px; flex-wrap: wrap; }
-    button {
-      position: relative; overflow: hidden;
-      appearance: none; border: 1px solid var(--btn-stroke);
-      color: var(--text);
-      border-radius: 12px; padding: 10px 12px; font-size: 13px; cursor: pointer;
-      background: linear-gradient(180deg, rgba(255,255,255,0.08), rgba(255,255,255,0.02));
-      box-shadow: var(--shadow);
-      transition: transform .12s var(--spring), box-shadow .2s var(--spring), border-color .2s ease, opacity .15s ease, filter .15s ease;
-      backdrop-filter: blur(8px);
-      transform: translateZ(0);
-    }
-    button:hover { transform: translateY(-1px); border-color: rgba(255,255,255,0.18); }
-    button:active { transform: scale(.98); }
-    button.primary {
-      background: linear-gradient(180deg, rgba(255,208,42,0.9), rgba(255,208,42,0.78));
-      border-color: rgba(255,208,42,0.95); color: #111;
-      text-shadow: 0 1px 0 rgba(255,255,255,0.25);
-    }
-    button.danger {
-      background: linear-gradient(180deg, rgba(240,77,77,0.9), rgba(240,77,77,0.78));
-      border-color: rgba(240,77,77,0.95);
-    }
-    button[disabled] {
-      opacity: .45; cursor: not-allowed; pointer-events: none;
-      filter: grayscale(35%);
-      background: linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02)) !important;
-      color: var(--disabled) !important;
-      text-shadow: none;
-    }
-    .ripple {
-      position: absolute; border-radius: 999px; transform: scale(0); pointer-events: none;
-      background: rgba(255,255,255,.35);
-      animation: ripple .5s var(--spring) forwards;
-      mix-blend-mode: overlay;
-    }
-    @keyframes ripple { to { transform: scale(10); opacity: 0; } }
-
-    @media (prefers-reduced-motion: reduce) {
-      .card, button, .blob { animation: none !important; transition: none !important; }
-      .card:hover { transform: none !important; }
-    }
-  </style>
+  <meta
+    name="viewport"
+    content="width=device-width, initial-scale=1, viewport-fit=cover"
+  />
+  <title>Yelo🟡Spot — Admin</title>
+  <link rel="stylesheet" href="./style.css" />
 </head>
 <body>
-  <div class="blob"></div>
-  <div class="blob bl2"></div>
-
-  <header>
-    <div class="left">
-      <div class="dot"></div>
-      <div>
-        <div class="title">Yelo🟡Spot — Admin Dashboard</div>
-        <div class="sub" id="adminLabel">loading…</div>
-        <div id="bar"></div>
+  <div id="app">
+    <header class="topbar glass">
+      <div class="brand">
+        <span class="logo-dot">●</span>
+        <span class="brand-name">Yelo<span class="y">🟡</span>Spot</span>
+        <span class="divider">—</span>
+        <span class="brand-sub">Admin Dashboard</span>
       </div>
-    </div>
-    <div></div>
-    <div class="right">
-      <div class="label-updated" id="lastUpdated">Last updated • —</div>
-      <button class="btn-refresh" id="btnRefresh">↻ Refresh</button>
-    </div>
-  </header>
 
-  <main>
-    <div id="orders"></div>
-  </main>
+      <div class="topbar-actions">
+        <div class="last-updated" id="lastUpdated">—</div>
+        <button id="refreshBtn" class="btn pill primary">↻ Refresh</button>
+      </div>
+    </header>
 
-  <script>
-    const tg = window.Telegram?.WebApp; tg?.expand();
-    const H = tg?.HapticFeedback;
-    const initData = tg?.initData || "";
+    <section class="summary-row">
+      <button class="chip glass" data-filter="all">
+        All: <strong id="count-all">0</strong>
+      </button>
+      <button class="chip glass" data-filter="0">
+        Preparing: <strong id="count-prep">0</strong>
+      </button>
+      <button class="chip glass" data-filter="1">
+        On the way: <strong id="count-way">0</strong>
+      </button>
+      <button class="chip glass" data-filter="2">
+        Delivered: <strong id="count-done">0</strong>
+      </button>
+      <button class="chip glass" data-filter="-1">
+        Canceled: <strong id="count-cancel">0</strong>
+      </button>
+    </section>
 
-    const wrap = document.getElementById("orders");
-    const bar  = document.getElementById("bar");
-    const adminLabel = document.getElementById("adminLabel");
-    const lastUpdatedEl = document.getElementById("lastUpdated");
-    const btnRefresh = document.getElementById("btnRefresh");
+    <main id="list" class="list"></main>
+  </div>
 
-    let prevSnapshot = "";
-    let refreshing = false;
-    let autoTimer = null;
-
-    function nowHHMMSS() {
-      const d = new Date();
-      const pad = n => String(n).padStart(2, "0");
-      return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
-    }
-    function setUpdatedNow() {
-      lastUpdatedEl.textContent = `Last updated • ${nowHHMMSS()}`;
-    }
-
-    function stageLabel(s) {
-      if (s === -1) return "Canceled";
-      if (s === 0)  return "Preparing";
-      if (s === 1)  return "Out for delivery";
-      if (s === 2)  return "Delivered";
-      return "Paid";
-    }
-    function isLockedOrder(o) {
-      return o.statusStage === 2 || o.statusStage === -1 || o.status === "completed" || o.status === "canceled";
-    }
-    function itemsText(items) {
-      if (!items || !items.length) return "—";
-      return items.map((i, idx) => `${idx+1}. ${i.category} — ${i.amount}`).join("\n");
-    }
-    function toastOK(msg)   { try { H?.impactOccurred('light'); tg?.showPopup({ title: "Yelo🟡Spot", message: msg, buttons: [{ type: "ok" }] }); } catch { alert(msg); } }
-    function toastWarn(msg) { try { H?.notificationOccurred('warning'); tg?.showPopup({ title: "Yelo🟡Spot", message: msg, buttons: [{ type: "ok" }] }); } catch { alert(msg); } }
-
-    async function api(path, opts={}) {
-      const res = await fetch(path, {
-        method: opts.method || "GET",
-        headers: { "Content-Type": "application/json", "X-Telegram-Init-Data": initData },
-        body: opts.body ? JSON.stringify(opts.body) : undefined,
-      });
-      return res.json();
-    }
-
-    function addRipple(e, btn) {
-      const rect = btn.getBoundingClientRect();
-      const ripple = document.createElement('span');
-      ripple.className = 'ripple';
-      const size = Math.max(rect.width, rect.height);
-      const x = (e.clientX || (rect.left + rect.width/2)) - rect.left - size/2;
-      const y = (e.clientY || (rect.top + rect.height/2)) - rect.top - size/2;
-      ripple.style.width = ripple.style.height = size + 'px';
-      ripple.style.left = x + 'px';
-      ripple.style.top  = y + 'px';
-      btn.appendChild(ripple);
-      setTimeout(() => ripple.remove(), 500);
-    }
-
-    function renderCounters(orders) {
-      const counts = { prep:0, onway:0, done:0, can:0 };
-      for (const o of orders) {
-        if (o.statusStage === 0) counts.prep++;
-        else if (o.statusStage === 1) counts.onway++;
-        else if (o.statusStage === 2) counts.done++;
-        else if (o.statusStage === -1) counts.can++;
-      }
-      bar.innerHTML = `
-        <span class="pill">Preparing: ${counts.prep}</span>
-        <span class="pill">On the way: ${counts.onway}</span>
-        <span class="pill">Delivered: ${counts.done}</span>
-        <span class="pill">Canceled: ${counts.can}</span>
-      `;
-    }
-
-    function renderOrders(orders) {
-      wrap.innerHTML = "";
-      if (!orders.length) {
-        wrap.innerHTML = "<div class='empty'>No orders yet.</div>";
-        return;
-      }
-      for (const o of orders) {
-        const locked = isLockedOrder(o);
-        const card = document.createElement("div");
-        card.className = "card" + (locked ? " disabled" : "");
-
-        const btnSend   = `<button class="primary btn" data-act="sendlink" data-id="${o.id}" ${locked ? "disabled" : ""}>🔗 Send link</button>`;
-        const btnOut    = `<button class="btn" data-act="stage" data-stage="1" data-id="${o.id}" ${locked ? "disabled" : ""}>🚚 Out for delivery</button>`;
-        const btnDone   = `<button class="btn" data-act="stage" data-stage="2" data-id="${o.id}" ${locked ? "disabled" : ""}>✅ Delivered</button>`;
-        const btnCancel = `<button class="danger btn" data-act="stage" data-stage="-1" data-id="${o.id}" ${locked ? "disabled" : ""}>❌ Cancel</button>`;
-
-        card.innerHTML = `
-          <div class="row">
-            <div class="tag">#${o.id}</div>
-            <div class="tag">${o.status}</div>
-            <div class="tag">${stageLabel(o.statusStage)}</div>
-          </div>
-          <div class="muted">${o.name || "N/A"} • ${o.phone || ""}</div>
-          <div class="muted">${o.address || ""}</div>
-          <div class="items">${itemsText(o.items)}</div>
-          <div class="btns">
-            ${btnSend}
-            ${btnOut}
-            ${btnDone}
-            ${btnCancel}
-          </div>
-        `;
-        wrap.appendChild(card);
-      }
-    }
-
-    async function loadOnce() {
-      // Header label once
-      try {
-        const p = new URLSearchParams(initData);
-        const user = JSON.parse(p.get("user") || "{}");
-        adminLabel.textContent = "Signed in as " + (user?.username ? "@"+user.username : `ID ${user?.id||""}`);
-      } catch { adminLabel.textContent = "Signed in"; }
-
-      const data = await api("/api/admin/orders");
-      if (!data.ok) {
-        wrap.innerHTML = "<div class='card'>⚠️ Unauthorized or error.</div>";
-        return;
-      }
-      renderCounters(data.orders);
-      renderOrders(data.orders);
-      prevSnapshot = JSON.stringify(data.orders);
-      setUpdatedNow();
-    }
-
-    async function refreshNow({forcePulse=false} = {}) {
-      if (refreshing) return;
-      refreshing = true;
-      try {
-        const data = await api("/api/admin/orders");
-        if (!data.ok) return;
-        const current = JSON.stringify(data.orders);
-        const changed = prevSnapshot !== current;
-        if (changed || forcePulse) {
-          document.body.classList.add("pulse");
-          setTimeout(() => document.body.classList.remove("pulse"), 400);
-          H?.impactOccurred("soft");
-          renderCounters(data.orders);
-          renderOrders(data.orders);
-          prevSnapshot = current;
-        }
-        setUpdatedNow();
-      } catch (err) {
-        console.warn("Refresh error:", err);
-      } finally {
-        refreshing = false;
-      }
-    }
-
-    function startAuto() {
-      if (autoTimer) clearInterval(autoTimer);
-      autoTimer = setInterval(() => refreshNow(), 10000); // 10s
-    }
-
-    // Event delegation (ripple + actions)
-    wrap.addEventListener("pointerdown", (e) => {
-      const btn = e.target.closest("button.btn"); if (!btn || btn.hasAttribute("disabled")) return;
-      addRipple(e, btn);
-      H?.impactOccurred('soft');
-    });
-    wrap.addEventListener("click", async (e) => {
-      const btn = e.target.closest("button"); if (!btn) return;
-      if (btn.hasAttribute("disabled")) return;
-      const id  = Number(btn.dataset.id);
-      const act = btn.dataset.act;
-
-      if (act === "sendlink") {
-        const link = prompt("Paste the delivery/tracking link:");
-        if (!link) return;
-        const r = await api(`/api/admin/orders/${id}/sendlink`, { method: "POST", body: { link } });
-        if (r.ok) { H?.notificationOccurred('success'); toastOK("Link sent to customer"); }
-        else      { H?.notificationOccurred('error');   toastWarn(r.error || "Error"); }
-        prevSnapshot = ""; // force next refresh to accept new state
-        await refreshNow({ forcePulse:true });
-        return;
-      }
-
-      if (act === "stage") {
-        const stage = Number(btn.dataset.stage);
-        const r = await api(`/api/admin/orders/${id}/stage`, { method: "POST", body: { stage } });
-        if (r.ok) { H?.notificationOccurred('success'); toastOK("Status updated"); }
-        else      { H?.notificationOccurred('error');   toastWarn(r.error || "Error"); }
-        prevSnapshot = "";
-        await refreshNow({ forcePulse:true });
-        return;
-      }
-    });
-
-    // Manual refresh button (debounced)
-    btnRefresh.addEventListener("click", async () => {
-      btnRefresh.disabled = true;
-      await refreshNow({ forcePulse:true });
-      setTimeout(() => { btnRefresh.disabled = false; }, 600);
-    });
-
-    // Boot
-    (async () => {
-      await loadOnce();
-      startAuto();
-    })();
-  </script>
+  <!-- Telegram WebApp SDK (safe to include; does nothing outside TG) -->
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <script src="./app.js" type="module"></script>
 </body>
 </html>

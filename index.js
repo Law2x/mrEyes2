@@ -32,7 +32,7 @@ const PRICE_LIST = {
     { label: "₱700 — 0.042",   callback: "amt:₱700" },
     { label: "₱1,000 — 0.056", callback: "amt:₱1000" },
     { label: "₱2,000 — Half",  callback: "amt:₱2000" },
-    { label: "₱3,800 — 8",     callback: "amt:₱3800" },
+    { label: "₱3,800 — G",     callback: "amt:₱3800" },
   ],
   syringe: [
     { label: "₱500 — 12 units",  callback: "amt:₱500" },

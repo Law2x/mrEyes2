@@ -1,90 +1,429 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta
-    name="viewport"
-    content="width=device-width,initial-scale=1,viewport-fit=cover"
-  />
-  <title>Yelo🟡Spot — Admin</title>
-  <link rel="stylesheet" href="./styles.css" />
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Yelo🟡Spot — Admin</title>
+
+<style>
+  :root {
+    --bg: #0f1115;
+    --panel: #161a20;
+    --panel-2: #1b1f27;
+    --text: #e8eefc;
+    --muted: #a9b3c7;
+    --brand: #ffd54a;
+    --brand-2: #ffb300;
+    --ok: #36d399;
+    --warn: #fbbf24;
+    --danger: #ef4444;
+    --ring: rgba(255,213,74,0.25);
+    --shadow: 0 8px 24px rgba(0,0,0,.35);
+    --radius: 16px;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0;
+    background:
+      radial-gradient(1200px 600px at 130% -10%, rgba(255, 217, 88, .08), transparent 60%),
+      linear-gradient(180deg, #0e1114 0%, #0f1115 100%);
+    color:var(--text);
+    font: 15px/1.45 ui-sans-serif, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial;
+    -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;
+  }
+
+  /* HEADER */
+  .bar{
+    position:sticky; top:0; z-index:20;
+    backdrop-filter:saturate(1.2) blur(8px);
+    background:rgba(15,17,21,.72);
+    border-bottom:1px solid rgba(255,255,255,.06);
+  }
+  .bar__row{
+    max-width:980px; margin:0 auto; padding:14px 16px;
+    display:flex; align-items:center; gap:12px;
+  }
+  .logo{display:flex; align-items:center; gap:10px; font-weight:800; letter-spacing:.3px}
+  .dot{width:12px; height:12px; border-radius:50%;
+       background: radial-gradient(circle at 30% 30%, #fff, #ffe07a 30%, #ffc107 60%, #b58900 100%);
+       box-shadow:0 0 0 3px rgba(255,213,74,.12);
+  }
+  .muted{color:var(--muted); font-weight:600}
+
+  .spacer{flex:1}
+
+  /* SWITCH (shop open/close) */
+  .switch{
+    display:flex; align-items:center; gap:10px; padding:8px 10px;
+    background:var(--panel-2); border-radius:999px; box-shadow:var(--shadow);
+  }
+  .switch label{font-weight:700}
+  .toggle{
+    appearance:none; -webkit-appearance:none; width:52px; height:28px; border-radius:999px;
+    background:#2a2f3a; position:relative; outline:none; cursor:pointer; transition:.2s;
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,.05);
+  }
+  .toggle:before{
+    content:""; position:absolute; top:3px; left:3px; width:22px; height:22px; border-radius:50%;
+    background:#fff; transition:.25s; box-shadow:0 2px 8px rgba(0,0,0,.35);
+  }
+  .toggle:checked{background:#1f4d2f}
+  .toggle:checked:before{transform:translateX(24px); background:#34d399}
+
+  /* REFRESH */
+  .btn{
+    border:none; color:#0f1115; background:linear-gradient(180deg, #ffe27a, #ffc62b);
+    border-radius:14px; font-weight:800; padding:10px 14px; box-shadow:var(--shadow);
+    display:inline-flex; align-items:center; gap:8px; cursor:pointer;
+  }
+  .btn:active{transform:translateY(1px)}
+  .btn--ghost{
+    background:transparent; color:var(--text); border:1px solid rgba(255,255,255,.09);
+  }
+
+  /* MAIN */
+  .wrap{max-width:980px; margin:0 auto; padding:14px 16px 80px}
+  .grid{
+    display:grid; grid-template-columns:1fr; gap:14px; margin-top:12px;
+  }
+  @media (min-width:700px){ .grid{grid-template-columns:1fr 1fr} }
+
+  .card{
+    background:var(--panel); border:1px solid rgba(255,255,255,.06);
+    border-radius:var(--radius); box-shadow:var(--shadow); padding:14px;
+  }
+  .row{display:flex; align-items:center; gap:10px; flex-wrap:wrap}
+  .title{font-weight:800; letter-spacing:.2px}
+  .select{
+    appearance:none; -webkit-appearance:none; color:var(--text); background:var(--panel-2);
+    border:1px solid rgba(255,255,255,.08); border-radius:12px; padding:10px 12px;
+    font-weight:700; outline:none;
+  }
+  .value{
+    font-size:42px; font-weight:900; margin-top:8px; display:flex; align-items:baseline; gap:8px;
+  }
+  .peso{font-size:22px; opacity:.75}
+
+  /* ORDERS LIST */
+  .list-title{margin:18px 2px 8px; font-weight:800; color:var(--muted)}
+  .order{
+    background:var(--panel); border:1px solid rgba(255,255,255,.06);
+    border-radius:18px; padding:14px; margin-bottom:14px; box-shadow:var(--shadow);
+  }
+  .order__head{display:flex; align-items:center; gap:10px; justify-content:space-between}
+  .badge{
+    display:inline-flex; align-items:center; padding:6px 10px; border-radius:999px; font-weight:800; font-size:12px;
+    letter-spacing:.2px; border:1px solid rgba(255,255,255,.06);
+  }
+  .b--ok{background:rgba(54,211,153,.15); color:#a8ffdc}
+  .b--warn{background:rgba(251,191,36,.15); color:#ffe9b0}
+  .b--muted{background:rgba(149,156,172,.18); color:#d5dceb}
+  .b--danger{background:rgba(239,68,68,.18); color:#ffd1d1}
+
+  .order__meta{color:var(--muted); margin:8px 0 4px; font-weight:600}
+  .order__name{font-size:18px; font-weight:900}
+  .order__addr{color:#c7d2e5}
+  .items{margin:8px 0 10px; color:#dfe7f6}
+
+  .actions{display:flex; gap:10px; flex-wrap:wrap}
+  .btn-sm{
+    border:1px solid rgba(255,255,255,.08); background:var(--panel-2); color:var(--text);
+    padding:10px 12px; border-radius:12px; font-weight:800; cursor:pointer;
+  }
+  .btn-danger{border-color:rgba(239,68,68,.35); color:#ffd1d1}
+
+  /* helper */
+  .hide{display:none}
+  .right{margin-left:auto}
+  .countchip{
+    width:26px; height:26px; border-radius:9px; display:inline-flex; align-items:center; justify-content:center;
+    background:rgba(255,255,255,.08); font-weight:900;
+  }
+</style>
 </head>
 <body>
-  <!-- Top toolbar -->
-  <header class="toolbar">
-    <div class="brand">
-      <div class="dot"></div>
-      <div class="name">
-        <div>Yelo🟡Spot</div>
-        <div class="sub">— Admin Dashboard</div>
-      </div>
-    </div>
+  <header class="bar">
+    <div class="bar__row">
+      <div class="logo"><span class="dot"></span>Yelo<span class="dot" style="margin-left:-4px"></span>Spot <span class="muted">— Admin Dashboard</span></div>
+      <div class="spacer"></div>
 
-    <div class="tools">
-      <div class="shop-wrap">
-        <span>Shop</span>
-        <label class="switch">
-          <input id="shopToggle" type="checkbox" />
-          <span class="slider"></span>
-        </label>
+      <div class="switch">
+        <label>Shop</label>
+        <input id="shopToggle" type="checkbox" class="toggle" />
       </div>
 
-      <button id="refreshBtn" class="btn primary" title="Refresh">
-        <span class="icon">⟳</span><span>Refresh</span>
+      <button id="btnRefresh" class="btn" title="Refresh">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
+          <path d="M21 12a9 9 0 1 1-2.64-6.36M21 4v6h-6" stroke="#242424" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        Refresh
       </button>
     </div>
   </header>
 
-  <div id="errorBanner" class="error hidden" role="alert"></div>
-
-  <!-- Metrics grid -->
-  <section class="metrics">
-    <article class="card metric">
-      <div class="row">
-        <div class="title">Orders</div>
-        <div class="select-wrap">
+  <main class="wrap">
+    <section class="grid">
+      <!-- Orders mini-card -->
+      <div class="card">
+        <div class="row">
+          <div class="title">Orders</div>
+          <span id="ordersCountChip" class="countchip">0</span>
+          <div class="spacer"></div>
           <select id="ordersFilter" class="select">
             <option value="all">All</option>
-            <option value="confirmed">Order Confirmed</option>
-            <option value="out">Out for Delivery</option>
-            <option value="delivered">Delivered</option>
+            <option value="confirmed">Order confirmed</option>
+            <option value="out_for_delivery">Out for delivery</option>
+            <option value="completed">Delivered</option>
             <option value="canceled">Canceled</option>
           </select>
         </div>
+        <div class="value" id="ordersCount"><span>0</span></div>
       </div>
-      <div class="metric-value" id="ordersCount">0</div>
-    </article>
 
-    <article class="card metric">
-      <div class="row">
-        <div class="title">Sales</div>
-        <div class="select-wrap">
+      <!-- Sales mini-card -->
+      <div class="card">
+        <div class="row">
+          <div class="title">Sales</div>
+          <div class="spacer"></div>
           <select id="salesRange" class="select">
             <option value="today">Today</option>
-            <option value="week">This week</option>
-            <option value="month">This month</option>
-            <option value="all">All time</option>
+            <option value="yesterday">Yesterday</option>
+            <option value="7d">Last 7 days</option>
+            <option value="30d">Last 30 days</option>
+            <option value="all">All</option>
           </select>
         </div>
+        <div class="value"><span class="peso">₱</span><span id="salesValue">0</span></div>
       </div>
-      <div class="metric-value" id="salesTotal">₱0</div>
-    </article>
-  </section>
+    </section>
 
-  <!-- Sticky list heading -->
-  <div class="list-head sticky">
-    <div>
-      <span id="listTitle">All orders</span>
-      <span id="updatedAt" class="muted"></span>
-    </div>
-  </div>
+    <h3 class="list-title" id="listTitle">All orders</h3>
+    <div id="ordersList"></div>
+  </main>
 
-  <!-- Orders list -->
-  <main id="ordersList" class="list"></main>
+<script type="module">
+/* ============== TELEGRAM AUTH / HELPERS ============== */
+const tg = window.Telegram?.WebApp;
+if (tg) { tg.expand?.(); tg.ready?.(); }
 
-  <!-- Toast -->
-  <div id="toast" class="toast"></div>
+const INIT_DATA = tg?.initData || (new URLSearchParams(location.search).get("initData")) || "";
+const AUTH_HEADERS = { "X-Telegram-Init-Data": INIT_DATA, "Content-Type": "application/json" };
 
-  <script src="./app.js" type="module"></script>
+const $ = (q, d=document)=>d.querySelector(q);
+const elOrdersCount = $("#ordersCount");
+const elOrdersCountChip = $("#ordersCountChip");
+const elOrdersList = $("#ordersList");
+const elListTitle = $("#listTitle");
+const elOrdersFilter = $("#ordersFilter");
+const elSalesRange = $("#salesRange");
+const elSalesValue = $("#salesValue");
+const elShopToggle = $("#shopToggle");
+const btnRefresh = $("#btnRefresh");
+
+let ORDERS = [];
+let SHOP_OPEN = true;
+
+/* ============== API ============== */
+async function api(path, opts={}) {
+  const r = await fetch(path, { ...opts, headers: { ...(opts.headers||{}), ...AUTH_HEADERS } });
+  if (!r.ok) throw new Error("HTTP " + r.status);
+  return r.json();
+}
+
+async function loadOrders() {
+  const j = await api("/api/admin/orders");
+  if (!j.ok) throw new Error("bad");
+  ORDERS = j.orders || [];
+  renderAll();
+}
+
+async function loadShop() {
+  try {
+    const j = await api("/api/admin/shop");
+    if (j?.ok) SHOP_OPEN = !!j.open;
+  } catch { /* optional */ }
+  elShopToggle.checked = SHOP_OPEN;
+}
+async function setShop(open) {
+  try {
+    await api("/api/admin/shop", { method:"POST", body: JSON.stringify({ open }) });
+    SHOP_OPEN = open;
+  } catch {
+    tg?.showAlert?.("Failed to update shop status");
+    elShopToggle.checked = !open;
+  }
+}
+
+async function postStage(id, stage) {
+  await api(`/api/admin/orders/${id}/stage`, { method:"POST", body: JSON.stringify({ stage }) });
+}
+async function postLink(id, link) {
+  await api(`/api/admin/orders/${id}/sendlink`, { method:"POST", body: JSON.stringify({ link }) });
+}
+
+/* ============== RENDER ============== */
+function peso(num){ return (Math.round(num)).toLocaleString("en-PH"); }
+function whenShort(iso){
+  try {
+    const d = new Date(iso);
+    return d.toLocaleString(undefined, { month:"numeric", day:"numeric", year:"numeric", hour:"numeric", minute:"2-digit" });
+  } catch { return iso; }
+}
+
+function statusBadgeCls(s){
+  if (s === "completed") return "badge b--ok";
+  if (s === "out_for_delivery") return "badge b--warn";
+  if (s === "canceled") return "badge b--danger";
+  if (s === "paid" || s === "confirmed") return "badge b--muted";
+  return "badge b--muted";
+}
+
+function computeSales(range){
+  const now = new Date();
+  const start = new Date(now);
+  if (range==="today") { start.setHours(0,0,0,0); }
+  else if (range==="yesterday") { start.setDate(start.getDate()-1); start.setHours(0,0,0,0); now.setDate(start.getDate()); now.setHours(23,59,59,999); }
+  else if (range==="7d") { start.setDate(start.getDate()-6); start.setHours(0,0,0,0); }
+  else if (range==="30d") { start.setDate(start.getDate()-29); start.setHours(0,0,0,0); }
+  else if (range==="all") { start.setTime(0); }
+
+  // sales: sum of numeric price we can parse from items label like "₱1,000 — 0.056" OR poppers ₱700 • Brand
+  let total = 0;
+  for (const o of ORDERS) {
+    const dt = new Date(o.createdAt || o.created_at || Date.now());
+    if (dt < start || dt > now) continue;
+    if (o.status !== "completed") continue; // only delivered counted as sales by default
+    for (const it of (o.items||[])) {
+      const t = it.amount || "";
+      const m = t.match(/₱\s*([\d,]+)/);
+      if (m) total += Number(m[1].replace(/,/g,""));
+      else if (/₱700/.test(t)) total += 700;
+    }
+  }
+  return total;
+}
+
+function filterOrders(kind){
+  if (kind==="all") return ORDERS;
+  if (kind==="confirmed") return ORDERS.filter(o => (o.status==="paid" || o.statusStage===0));
+  return ORDERS.filter(o => (o.status===kind));
+}
+
+function renderTopCounts(){
+  const kind = elOrdersFilter.value;
+  const list = filterOrders(kind);
+  elOrdersCount.textContent = list.length;
+  elOrdersCountChip.textContent = list.length;
+
+  const label = {
+    all:"All orders",
+    confirmed:"Order confirmed",
+    out_for_delivery:"Out for delivery",
+    completed:"Delivered",
+    canceled:"Canceled"
+  }[kind] || "All orders";
+  elListTitle.textContent = label;
+
+  const sales = computeSales(elSalesRange.value);
+  elSalesValue.textContent = peso(sales);
+}
+
+function renderOrders(){
+  const kind = elOrdersFilter.value;
+  const list = filterOrders(kind);
+
+  if (!list.length){
+    elOrdersList.innerHTML = `<div class="card">No orders yet.</div>`;
+    return;
+  }
+
+  elOrdersList.innerHTML = list.map(o=>{
+    const items = (o.items||[]).map(i=>`• ${i.category?.replaceAll("_"," ")} — ${i.amount}`).join("<br>");
+    const dt = whenShort(o.createdAt);
+    const stage = o.status === "completed" ? 2 :
+                  o.status === "out_for_delivery" ? 1 :
+                  o.status === "canceled" ? -1 : 0;
+
+    return `
+      <article class="order" data-id="${o.id}">
+        <div class="order__head">
+          <div class="badge b--muted">#${o.id}</div>
+          <div class="${statusBadgeCls(o.status)}">${o.status.replaceAll("_"," ")}</div>
+        </div>
+
+        <div class="order__meta">Received from customer: ${dt}</div>
+        <div class="order__name">${o.name || "—"} • ${o.phone || ""}</div>
+        <div class="order__addr">${o.address || "No address"}</div>
+
+        <div class="items" style="margin-top:6px">${items || "—"}</div>
+
+        <div class="actions">
+          <button class="btn-sm" data-act="sendlink">Send link</button>
+
+          <select class="select" data-act="stage" style="padding:8px 10px">
+            <option value="0" ${stage===0?"selected":""}>Order confirmed</option>
+            <option value="1" ${stage===1?"selected":""}>Out for delivery</option>
+            <option value="2" ${stage===2?"selected":""}>Delivered</option>
+            <option value="-1" ${stage===-1?"selected":""}>Canceled</option>
+          </select>
+
+          <button class="btn-sm btn-danger right" data-act="cancel">Cancel</button>
+        </div>
+      </article>
+    `;
+  }).join("");
+}
+
+/* ============== EVENTS ============== */
+elOrdersFilter.addEventListener("change", ()=>{ renderTopCounts(); renderOrders(); });
+elSalesRange.addEventListener("change", ()=>{ renderTopCounts(); });
+
+btnRefresh.addEventListener("click", async ()=>{
+  btnRefresh.disabled = true;
+  try { await Promise.all([loadOrders(), loadShop()]); }
+  catch { tg?.showAlert?.("Auth/DB error loading orders"); }
+  finally { btnRefresh.disabled = false; }
+});
+
+elShopToggle.addEventListener("change", e=> setShop(e.target.checked));
+
+elOrdersList.addEventListener("click", async (e)=>{
+  const btn = e.target.closest("[data-act]");
+  if (!btn) return;
+  const card = e.target.closest(".order");
+  const id = Number(card.dataset.id);
+
+  if (btn.dataset.act==="sendlink"){
+    const link = prompt("Delivery / tracking link:");
+    if (!link) return;
+    try { await postLink(id, link); await loadOrders(); }
+    catch { tg?.showAlert?.("Failed to send link"); }
+  }
+  if (btn.dataset.act==="cancel"){
+    if (!confirm("Cancel this order?")) return;
+    try { await postStage(id, -1); await loadOrders(); }
+    catch { tg?.showAlert?.("Failed to cancel"); }
+  }
+});
+
+elOrdersList.addEventListener("change", async (e)=>{
+  const sel = e.target.closest('select[data-act="stage"]');
+  if (!sel) return;
+  const card = e.target.closest(".order");
+  const id = Number(card.dataset.id);
+  const stage = Number(sel.value);
+  try { await postStage(id, stage); await loadOrders(); }
+  catch { tg?.showAlert?.("Failed to update stage"); }
+});
+
+/* ============== INIT ============== */
+(async function init(){
+  try { await Promise.all([loadOrders(), loadShop()]); }
+  catch { tg?.showAlert?.("Auth/DB error loading orders"); }
+})();
+
+function renderAll(){ renderTopCounts(); renderOrders(); }
+</script>
 </body>
 </html>

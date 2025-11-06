@@ -11,12 +11,17 @@ const __dirname = path.dirname(__filename);
 
 // ───────── CONFIG ─────────
 const BOT_TOKEN = process.env.BOT_TOKEN;
-const ADMIN_CHAT_ID = Number(process.env.ADMIN_CHAT_ID || 0);
-const HOST_URL = process.env.HOST_URL;
-const PORT = process.env.PORT || 3000;
+const HOST_URL  = process.env.HOST_URL;
+const PORT      = process.env.PORT || 3000;
+
+// Multiple admins: comma-separated list in env, e.g. ADMIN_IDS=123,456
+const ADMIN_IDS = (process.env.ADMIN_IDS || "")
+  .split(",")
+  .map(s => Number(s.trim()))
+  .filter(n => Number.isFinite(n));
 
 if (!BOT_TOKEN) throw new Error("BOT_TOKEN missing.");
-if (!ADMIN_CHAT_ID) console.warn("⚠️ ADMIN_CHAT_ID missing or 0.");
+if (ADMIN_IDS.length === 0) console.warn("⚠️ No ADMIN_IDS configured.");
 
 const TELEGRAM_API = `https://api.telegram.org/bot${BOT_TOKEN}`;
 
@@ -34,12 +39,13 @@ const PRICE_LIST = {
     { label: "₱700 — 20 units",  callback: "amt:₱700" },
     { label: "₱1,000 — 30 units",callback: "amt:₱1000" },
   ],
+  // Poppers top-level
   poppers: [
     { label: "⚡ Fast-acting",  callback: "cat:poppers_fast" },
     { label: "🌿 Smooth blend", callback: "cat:poppers_smooth" },
     { label: "💎 Premium",      callback: "cat:poppers_premium" },
   ],
-  // All poppers ₱700; items can appear in multiple groups
+  // All poppers ₱700; items can appear in multiple groups.
   poppers_fast: [
     { label: "Rush Ultra Strong (Yellow) — ₱700", callback: "amt:Rush Ultra Strong (Yellow)" },
     { label: "Iron Horse — ₱700",                 callback: "amt:Iron Horse" },
@@ -101,6 +107,33 @@ async function tgSendPhotoByFileId(chatId, file_id, caption = "") {
   });
 }
 
+// ───────── UTILS ─────────
+const isAdmin = (id) => ADMIN_IDS.includes(id);
+
+function getSession(chatId) {
+  const now = Date.now();
+  let s = sessions.get(chatId);
+  if (!s) {
+    s = { lastActive: now, cart: [], status: "idle" };
+    sessions.set(chatId, s);
+  } else s.lastActive = now;
+  return s;
+}
+function ensureCart(s) { if (!s.cart) s.cart = []; }
+function itemsToText(items) {
+  return items.map((i, idx) => `${idx + 1}. ${i.category} — ${i.amount}`).join("\n");
+}
+async function reverseGeocode(lat, lon) {
+  try {
+    const r = await fetchFn(
+      `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=18&addressdetails=1`,
+      { headers: { "User-Agent": "YeloSpotBot/1.0" } }
+    );
+    const j = await r.json();
+    return j.display_name || `${lat}, ${lon}`;
+  } catch { return `${lat}, ${lon}`; }
+}
+
 // ───────── CONTACT ADMIN FLOW ─────────
 async function startContactAdmin(chatId) {
   const s = getSession(chatId);
@@ -116,7 +149,7 @@ async function startContactAdmin(chatId) {
     }
   );
 }
-async function forwardCustomerMessageToAdmin(chatId, text) {
+async function forwardCustomerMessageToAdmins(chatId, text) {
   const s = getSession(chatId);
   const header =
     `✉️ *Customer message*\n` +
@@ -126,9 +159,11 @@ async function forwardCustomerMessageToAdmin(chatId, text) {
     (s.address ? `• Address: ${s.address}\n` : "") +
     `\n${text}`;
 
-  const r = await tgSendMessage(ADMIN_CHAT_ID, header, { parse_mode: "Markdown" });
-  const j = await r.json().catch(() => null);
-  if (j?.ok) adminMessageMap.set(j.result.message_id, { customerChatId: chatId });
+  for (const adminId of ADMIN_IDS) {
+    const r = await tgSendMessage(adminId, header, { parse_mode: "Markdown" });
+    const j = await r.json().catch(() => null);
+    if (j?.ok) adminMessageMap.set(j.result.message_id, { customerChatId: chatId });
+  }
   await tgSendMessage(chatId, "✅ Sent to admin. We’ll reply here as soon as possible.");
 }
 
@@ -168,32 +203,7 @@ async function sendPaymentQR(chatId) {
   }
 }
 
-// ───────── UTIL ─────────
-function getSession(chatId) {
-  const now = Date.now();
-  let s = sessions.get(chatId);
-  if (!s) {
-    s = { lastActive: now, cart: [], status: "idle" };
-    sessions.set(chatId, s);
-  } else s.lastActive = now;
-  return s;
-}
-function ensureCart(s) { if (!s.cart) s.cart = []; }
-function itemsToText(items) {
-  return items.map((i, idx) => `${idx + 1}. ${i.category} — ${i.amount}`).join("\n");
-}
-async function reverseGeocode(lat, lon) {
-  try {
-    const r = await fetchFn(
-      `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=18&addressdetails=1`,
-      { headers: { "User-Agent": "YeloSpotBot/1.0" } }
-    );
-    const j = await r.json();
-    return j.display_name || `${lat}, ${lon}`;
-  } catch { return `${lat}, ${lon}`; }
-}
-
-// ───────── KEYBOARDS (persistent Contact Admin) ─────────
+// ───────── KEYBOARDS ─────────
 function buildCategoryKeyboard() {
   return {
     inline_keyboard: [
@@ -201,12 +211,8 @@ function buildCategoryKeyboard() {
         { text: "💧 Sachet",  callback_data: "cat:sachet" },
         { text: "💉 Syringe", callback_data: "cat:syringe" },
       ],
-      [
-        { text: "🧪 Poppers", callback_data: "cat:poppers" },
-      ],
-      [
-        { text: "🧑‍💼 Contact Admin", callback_data: "contact:admin" },
-      ],
+      [{ text: "🧪 Poppers", callback_data: "cat:poppers" }],
+      [{ text: "🧑‍💼 Contact Admin", callback_data: "contact:admin" }],
     ],
   };
 }
@@ -237,8 +243,8 @@ function adminPanelKeyboard() {
     ],
   };
 }
-async function openAdminCenter() {
-  return tgSendMessage(ADMIN_CHAT_ID, "👑 *Admin Center — Yelo🟡Spot*", {
+async function openAdminCenter(forAdminId) {
+  return tgSendMessage(forAdminId, "👑 *Admin Center — Yelo🟡Spot*", {
     parse_mode: "Markdown",
     reply_markup: adminPanelKeyboard(),
   });
@@ -276,28 +282,29 @@ async function listOrders(chatId) {
     await tgSendMessage(chatId, orderSummaryText(o), { reply_markup: kb });
   }
 }
-async function notifyAdminNewOrder(order, from) {
+async function notifyAdminsNewOrder(order, from) {
   const text = orderSummaryText(order);
-  const r = await tgSendMessage(ADMIN_CHAT_ID, text);
-  const j = await r.json().catch(() => null);
-  if (j?.ok) adminMessageMap.set(j.result.message_id, { customerChatId: from.id });
-
-  if (order.coords) await tgSendLocation(ADMIN_CHAT_ID, order.coords.latitude, order.coords.longitude);
-  if (order.paymentProof) {
-    await tgSendPhotoByFileId(
-      ADMIN_CHAT_ID,
-      order.paymentProof,
-      `💰 Payment screenshot for Order #${order.id}`
-    );
+  for (const adminId of ADMIN_IDS) {
+    const r = await tgSendMessage(adminId, text);
+    const j = await r.json().catch(() => null);
+    if (j?.ok) adminMessageMap.set(j.result.message_id, { customerChatId: from.id });
+    if (order.coords) await tgSendLocation(adminId, order.coords.latitude, order.coords.longitude);
+    if (order.paymentProof) {
+      await tgSendPhotoByFileId(
+        adminId,
+        order.paymentProof,
+        `💰 Payment screenshot for Order #${order.id}`
+      );
+    }
   }
 }
 
 // ───────── CALLBACKS ─────────
 async function handleCallbackQuery(cbq) {
   const chatId = cbq.message.chat.id;
-  const msgId = cbq.message.message_id;
-  const data = cbq.data;
-  const s = getSession(chatId);
+  const msgId  = cbq.message.message_id;
+  const data   = cbq.data;
+  const s      = getSession(chatId);
 
   // TERMS
   if (data === "terms:agree") {
@@ -318,7 +325,7 @@ async function handleCallbackQuery(cbq) {
   }
 
   // CONTACT ADMIN
-  if (data === "contact:admin") { await startContactAdmin(chatId); return; }
+  if (data === "contact:admin")  return startContactAdmin(chatId);
   if (data === "contact:cancel") {
     s.step = "ordering";
     await tgEditMessageText(chatId, msgId, "📂 Back to Categories", {
@@ -329,7 +336,7 @@ async function handleCallbackQuery(cbq) {
 
   // ADMIN CALLBACKS
   if (data.startsWith("admin:")) {
-    if (chatId !== ADMIN_CHAT_ID) { await tgSendMessage(chatId, "⛔ Unauthorized."); return; }
+    if (!isAdmin(chatId)) { await tgSendMessage(chatId, "⛔ Unauthorized."); return; }
     const [, action, arg] = data.split(":");
     switch (action) {
       case "toggle":
@@ -471,7 +478,9 @@ async function handleCallbackQuery(cbq) {
     const o = orders.find(x => x.customerChatId === chatId && x.status !== "canceled");
     if (o) o.status = "delivered";
     await tgSendMessage(chatId, "✅ Thank you for confirming! We’re glad your order arrived safely. 💙");
-    await tgSendMessage(ADMIN_CHAT_ID, `📦 Customer *${s.name || chatId}* marked the order as *Received*.`, { parse_mode: "Markdown" });
+    for (const adminId of ADMIN_IDS) {
+      await tgSendMessage(adminId, `📦 Customer *${s.name || chatId}* marked the order as *Received*.`, { parse_mode: "Markdown" });
+    }
     return;
   }
 }
@@ -479,11 +488,12 @@ async function handleCallbackQuery(cbq) {
 // ───────── MESSAGES ─────────
 async function handleMessage(msg) {
   const chatId = msg.chat.id;
-  const text = (msg.text || "").trim();
-  const s = getSession(chatId);
+  const fromId = msg.from?.id;
+  const text   = (msg.text || "").trim();
+  const s      = getSession(chatId);
 
-  // Admin reply bridge
-  if (chatId === ADMIN_CHAT_ID && msg.reply_to_message) {
+  // Admin reply bridge (replying to a forwarded customer message)
+  if (isAdmin(chatId) && msg.reply_to_message) {
     const info = adminMessageMap.get(msg.reply_to_message.message_id);
     if (!info) return tgSendMessage(chatId, "⚠️ Cannot map reply to a customer.");
     await tgSendMessage(info.customerChatId, `🧑‍💼 Admin:\n${text}`);
@@ -498,7 +508,7 @@ async function handleMessage(msg) {
   }
 
   // Admin typed delivery link after "Send Delivery Link"
-  if (chatId === ADMIN_CHAT_ID && adminState.mode === "await_delivery_link") {
+  if (isAdmin(chatId) && adminState.mode === "await_delivery_link") {
     const id = adminState.deliveryOrderId;
     const o = findOrder(id);
     adminState.mode = null;
@@ -515,11 +525,11 @@ async function handleMessage(msg) {
   }
 
   // Admin broadcast
-  if (chatId === ADMIN_CHAT_ID && adminState.mode === "broadcast") {
+  if (isAdmin(chatId) && adminState.mode === "broadcast") {
     adminState.mode = null;
     let count = 0;
     for (const [cid] of sessions) {
-      if (cid === ADMIN_CHAT_ID) continue;
+      if (isAdmin(cid)) continue; // skip admin chats
       try { await tgSendMessage(cid, `📢 *Admin Broadcast:*\n${text}`, { parse_mode: "Markdown" }); count++; }
       catch {}
     }
@@ -528,11 +538,11 @@ async function handleMessage(msg) {
   }
 
   // Admin commands
-  if (text === "/admin")      { if (chatId !== ADMIN_CHAT_ID) return tgSendMessage(chatId, "⛔ For admin only."); await openAdminCenter(); return; }
-  if (text === "/open")       { if (chatId !== ADMIN_CHAT_ID) return; SHOP_OPEN = true;  return tgSendMessage(chatId, "🟢 Shop is now OPEN."); }
-  if (text === "/close")      { if (chatId !== ADMIN_CHAT_ID) return; SHOP_OPEN = false; return tgSendMessage(chatId, "🔴 Shop is now CLOSED."); }
-  if (text === "/orders")     { if (chatId !== ADMIN_CHAT_ID) return; await listOrders(chatId); return; }
-  if (text === "/broadcast")  { if (chatId !== ADMIN_CHAT_ID) return; adminState.mode = "broadcast"; return tgSendMessage(chatId, "📢 Send the message to broadcast to all recent chats."); }
+  if (text === "/admin")      { if (!isAdmin(fromId)) return tgSendMessage(chatId, "⛔ For admin only."); await openAdminCenter(chatId); return; }
+  if (text === "/open")       { if (!isAdmin(fromId)) return; SHOP_OPEN = true;  return tgSendMessage(chatId, "🟢 Shop is now OPEN."); }
+  if (text === "/close")      { if (!isAdmin(fromId)) return; SHOP_OPEN = false; return tgSendMessage(chatId, "🔴 Shop is now CLOSED."); }
+  if (text === "/orders")     { if (!isAdmin(fromId)) return; await listOrders(chatId); return; }
+  if (text === "/broadcast")  { if (!isAdmin(fromId)) return; adminState.mode = "broadcast"; return tgSendMessage(chatId, "📢 Send the message to broadcast to all recent chats."); }
 
   // Public commands (menu support)
   if (text === "/menu") {
@@ -585,9 +595,7 @@ Tap below to proceed.
             { text: "✅ I Agree (18+)", callback_data: "terms:agree" },
             { text: "❌ I Disagree",    callback_data: "terms:decline" },
           ],
-          [
-            { text: "🧑‍💼 Contact Admin", callback_data: "contact:admin" },
-          ]
+          [{ text: "🧑‍💼 Contact Admin", callback_data: "contact:admin" }]
         ],
       },
     });
@@ -596,9 +604,9 @@ Tap below to proceed.
 
   // Contact Admin typing mode
   if (s.step === "contact_admin") {
-    if (!text) return; // ignore non-text here
-    await forwardCustomerMessageToAdmin(chatId, text);
-    s.step = "ordering"; // return to normal flow
+    if (!text) return;
+    await forwardCustomerMessageToAdmins(chatId, text);
+    s.step = "ordering";
     return;
   }
 
@@ -692,7 +700,7 @@ async function handlePhotoOrDocument(msg) {
   };
   orders.push(order);
 
-  await notifyAdminNewOrder(order, msg.from);
+  await notifyAdminsNewOrder(order, msg.from);
 
   s.status = "complete";
   await tgSendMessage(
@@ -709,10 +717,10 @@ app.post(pathWebhook, async (req, res) => {
   try {
     if (u.message) {
       const m = u.message;
-      if (m.contact) await handleContact(m);
+      if (m.contact)       await handleContact(m);
       else if (m.location) await handleLocation(m);
       else if (m.photo || m.document) await handlePhotoOrDocument(m);
-      else await handleMessage(m);
+      else                  await handleMessage(m);
     } else if (u.callback_query) {
       await handleCallbackQuery(u.callback_query);
     }
@@ -772,24 +780,25 @@ app.listen(PORT, async () => {
     console.error("❌ Failed to set public menu commands:", e);
   }
 
-  // ---- ADMIN-ONLY MENU IN ADMIN CHAT ----
-  try {
-    await fetchFn(`${TELEGRAM_API}/setMyCommands`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        commands: [
-          { command: "admin",     description: "Open Admin Center" },
-          { command: "open",      description: "Open shop" },
-          { command: "close",     description: "Close shop" },
-          { command: "orders",    description: "List recent orders" },
-          { command: "broadcast", description: "Broadcast a message" },
-        ],
-        scope: { type: "chat", chat_id: ADMIN_CHAT_ID },
-      }),
-    });
-    console.log("✅ Admin menu commands registered for admin chat.");
-  } catch (e) {
-    console.error("❌ Failed to set admin menu commands:", e);
+  // ---- ADMIN-ONLY MENU FOR EACH ADMIN CHAT ----
+  for (const adminId of ADMIN_IDS) {
+    try {
+      await fetchFn(`${TELEGRAM_API}/setMyCommands`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          commands: [
+            { command: "admin",     description: "Open Admin Center" },
+            { command: "open",      description: "Open shop" },
+            { command: "close",     description: "Close shop" },
+            { command: "orders",    description: "List recent orders" },
+            { command: "broadcast", description: "Broadcast a message" },
+          ],
+          scope: { type: "chat", chat_id: adminId },
+        }),
+      });
+    } catch (e) {
+      console.error(`❌ Failed to set admin menu for ${adminId}:`, e);
+    }
   }
 });

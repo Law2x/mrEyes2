@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Yelo🟡Spot — Admin Dashboard</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <style>
+    :root { color-scheme: dark; }
+    body { margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; background:#0b0b0c; color:#f6f7f9; }
+    header { position:sticky; top:0; backdrop-filter: blur(8px); background:rgba(0,0,0,.5); padding:12px 16px; border-bottom:1px solid #1e1e22; display:flex; align-items:center; gap:10px;}
+    .dot{width:10px;height:10px;border-radius:50%;background:#ffd02a;box-shadow:0 0 10px #ffd02a;}
+    .title{font-weight:700;letter-spacing:.3px;}
+    .sub{opacity:.7;font-size:12px;}
+    #bar{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px;}
+    .pill{font-size:12px;padding:6px 10px;border-radius:999px;background:#16161a;border:1px solid #24242a;}
+    main{padding:16px;}
+    .card{background:#121217;border:1px solid #1e1e22;border-radius:14px;padding:14px;margin:10px 0;box-shadow:0 10px 30px rgba(0,0,0,.35);}
+    .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;}
+    .tag{font-size:12px;padding:4px 8px;border-radius:999px;background:#1a1a22;border:1px solid #25252b;}
+    .items{font-size:13px;opacity:.9;margin-top:6px;white-space:pre-wrap;}
+    .btns{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;}
+    button{background:#18181f;color:#fff;border:1px solid #2a2a33;border-radius:10px;padding:8px 10px;font-size:13px;cursor:pointer;}
+    button.primary{background:#ffd02a;color:#111;border-color:#ffd02a;}
+    button.danger{background:#2a1111;border-color:#542222;}
+    .muted{opacity:.7;}
+  </style>
+</head>
+<body>
+  <header>
+    <div class="dot"></div>
+    <div>
+      <div class="title">Yelo🟡Spot — Admin Dashboard</div>
+      <div class="sub" id="adminLabel">loading…</div>
+      <div id="bar"></div>
+    </div>
+  </header>
+  <main>
+    <div id="orders"></div>
+  </main>
+
+  <script>
+    const tg = window.Telegram?.WebApp; tg?.expand();
+    const initData = tg?.initData || "";
+
+    function stageLabel(s){ if(s===-1)return "Canceled"; if(s===0)return "Preparing"; if(s===1)return "Out for delivery"; if(s===2)return "Delivered"; return "Paid"; }
+    function itemsText(items){ return !items?.length ? "—" : items.map((i,idx)=>`${idx+1}. ${i.category} — ${i.amount}`).join("\n"); }
+    function toast(msg){ try{ tg?.showPopup({title:"Yelo🟡Spot", message:msg, buttons:[{type:"ok"}]}); }catch{ alert(msg); } }
+
+    async function api(path, opts={}){
+      const res = await fetch(path,{
+        method: opts.method||"GET",
+        headers:{ "Content-Type":"application/json", "X-Telegram-Init-Data": initData },
+        body: opts.body ? JSON.stringify(opts.body) : undefined
+      });
+      return res.json();
+    }
+
+    async function load(){
+      try{
+        const p = new URLSearchParams(initData);
+        const user = JSON.parse(p.get("user")||"{}");
+        document.getElementById("adminLabel").textContent = "Signed in as " + (user?.username ? "@"+user.username : `ID ${user?.id||""}`);
+      }catch{ document.getElementById("adminLabel").textContent = "Signed in"; }
+
+      const data = await api("/api/admin/orders");
+      const wrap = document.getElementById("orders");
+      const bar = document.getElementById("bar");
+      wrap.innerHTML=""; bar.innerHTML="";
+
+      if(!data.ok){ wrap.innerHTML = "<div class='card'>Unauthorized or error.</div>"; return; }
+
+      const counts={prep:0,onway:0,done:0,can:0};
+      for(const o of data.orders){
+        if(o.statusStage===0) counts.prep++;
+        else if(o.statusStage===1) counts.onway++;
+        else if(o.statusStage===2) counts.done++;
+        else if(o.statusStage===-1) counts.can++;
+      }
+      bar.innerHTML = `
+        <span class="pill">Preparing: ${counts.prep}</span>
+        <span class="pill">On the way: ${counts.onway}</span>
+        <span class="pill">Delivered: ${counts.done}</span>
+        <span class="pill">Canceled: ${counts.can}</span>
+      `;
+
+      for(const o of data.orders){
+        const card = document.createElement("div");
+        card.className="card";
+        card.innerHTML = `
+          <div class="row">
+            <div class="tag">#${o.id}</div>
+            <div class="tag">${o.status}</div>
+            <div class="tag">${stageLabel(o.statusStage)}</div>
+          </div>
+          <div class="muted">${o.name||"N/A"} • ${o.phone||""}</div>
+          <div class="muted">${o.address||""}</div>
+          <div class="items">${itemsText(o.items)}</div>
+          <div class="btns">
+            <button data-act="sendlink" data-id="${o.id}" class="primary">🔗 Send link</button>
+            <button data-act="stage" data-stage="1" data-id="${o.id}">🚚 Out for delivery</button>
+            <button data-act="stage" data-stage="2" data-id="${o.id}">✅ Delivered</button>
+            <button data-act="stage" data-stage="-1" data-id="${o.id}" class="danger">❌ Cancel</button>
+          </div>`;
+        wrap.appendChild(card);
+      }
+
+      wrap.addEventListener("click", async (e)=>{
+        const btn = e.target.closest("button"); if(!btn) return;
+        const id = Number(btn.dataset.id); const act = btn.dataset.act;
+
+        if(act==="sendlink"){
+          const link = prompt("Paste the delivery/tracking link:");
+          if(!link) return;
+          const r = await api(`/api/admin/orders/${id}/sendlink`, { method:"POST", body:{ link } });
+          toast(r.ok ? "✅ Link sent to customer" : "⚠️ "+(r.error||"error"));
+          return load();
+        }
+        if(act==="stage"){
+          const stage = Number(btn.dataset.stage);
+          const r = await api(`/api/admin/orders/${id}/stage`, { method:"POST", body:{ stage } });
+          toast(r.ok ? "✅ Status updated" : "⚠️ "+(r.error||"error"));
+          return load();
+        }
+      });
+    }
+    load();
+  </script>
+</body>
+</html>

@@ -4,6 +4,7 @@ import fetchPkg from "node-fetch";
 const fetchFn = typeof fetch !== "undefined" ? fetch : fetchPkg;
 import fs from "fs/promises";
 import path from "path";
+import crypto from "crypto";
 import { fileURLToPath } from "url";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -14,7 +15,7 @@ const BOT_TOKEN = process.env.BOT_TOKEN;
 const HOST_URL  = process.env.HOST_URL;
 const PORT      = process.env.PORT || 3000;
 
-// One or more admins (comma-separated). For single admin, set one ID only.
+// Multiple admins: comma-separated list in env, e.g. ADMIN_IDS=123,456
 const ADMIN_IDS = (process.env.ADMIN_IDS || "")
   .split(",")
   .map(s => Number(s.trim()))
@@ -32,20 +33,19 @@ const PRICE_LIST = {
     { label: "₱700 — 0.042",   callback: "amt:₱700 — 0.042" },
     { label: "₱1,000 — 0.056", callback: "amt:₱1,000 — 0.056" },
     { label: "₱2,000 — Half",  callback: "amt:₱2,000 — Half" },
-    { label: "₱3,800 — G",     callback: "amt:₱3,800 — 8" },
+    { label: "₱3,800 — 8",     callback: "amt:₱3,800 — 8" },
   ],
   syringe: [
     { label: "₱500 — 12 units",   callback: "amt:₱500 — 12 units" },
     { label: "₱700 — 20 units",   callback: "amt:₱700 — 20 units" },
     { label: "₱1,000 — 30 units", callback: "amt:₱1,000 — 30 units" },
   ],
-  // Poppers top-level
+  // Poppers top-level (all ₱700; brands can appear in multiple buckets)
   poppers: [
     { label: "⚡ Fast-acting",  callback: "cat:poppers_fast" },
     { label: "🌿 Smooth blend", callback: "cat:poppers_smooth" },
     { label: "💎 Premium",      callback: "cat:poppers_premium" },
   ],
-  // All poppers ₱700; items can appear in multiple groups.
   poppers_fast: [
     { label: "Rush Ultra Strong (Yellow) — ₱700", callback: "amt:Rush Ultra Strong (Yellow)" },
     { label: "Iron Horse — ₱700",                 callback: "amt:Iron Horse" },
@@ -75,8 +75,9 @@ const adminState = { mode: null, deliveryOrderId: null }; // 'broadcast' | 'awai
 // ───────── EXPRESS ─────────
 const app = express();
 app.use(express.json());
-// Serve public as /static so we can send photos by URL (e.g., HOST_URL/static/qrph.jpg)
+// Static: product QR, receipt, and the admin webapp
 app.use("/static", express.static("public"));
+app.use("/admin-app", express.static(path.join(__dirname, "public", "admin-app")));
 
 // ───────── TG HELPERS ─────────
 async function tgSendMessage(chatId, text, extra = {}) {
@@ -169,7 +170,6 @@ async function forwardCustomerMessageToAdmins(chatId, text) {
 }
 
 // ───────── QR (Payment + Contact Admin) ─────────
-// Robust: send photo by public URL (no FormData/Blob needed)
 async function sendPaymentQR(chatId) {
   try {
     const url = `${HOST_URL?.replace(/\/+$/, "")}/static/qrph.jpg`;
@@ -236,13 +236,18 @@ function buildAmountKeyboard(s) {
 
 // ───────── ADMIN CENTER ─────────
 function adminPanelKeyboard() {
-  return {
+  const kb = {
     inline_keyboard: [
       [{ text: SHOP_OPEN ? "🔴 Close Shop" : "🟢 Open Shop", callback_data: "admin:toggle" }],
       [{ text: "📋 View Orders", callback_data: "admin:orders" }],
       [{ text: "📢 Broadcast", callback_data: "admin:broadcast" }],
     ],
   };
+  // Mini-app dashboard entry (WebApp)
+  if (HOST_URL) {
+    kb.inline_keyboard.push([{ text: "🖥️ Open Dashboard", web_app: { url: `${HOST_URL}/admin-app` } }]);
+  }
+  return kb;
 }
 async function openAdminCenter(forAdminId) {
   return tgSendMessage(forAdminId, "👑 *Admin Center — Yelo🟡Spot*", {
@@ -300,6 +305,98 @@ async function notifyAdminsNewOrder(order, from) {
   }
 }
 
+// ───────── TELEGRAM WEBAPP AUTH (for Admin Mini-App) ─────────
+function getWebAppSecretKey(botToken) {
+  // secret = HMAC-SHA256("WebAppData", botToken)
+  return crypto.createHmac("sha256", "WebAppData").update(botToken).digest();
+}
+function checkWebAppInitData(initDataRaw) {
+  if (!initDataRaw || typeof initDataRaw !== "string") return { ok: false, reason: "missing initData" };
+  const url = new URLSearchParams(initDataRaw);
+  const hash = url.get("hash");
+  if (!hash) return { ok: false, reason: "missing hash" };
+
+  const pairs = [];
+  for (const [k, v] of url.entries()) if (k !== "hash") pairs.push(`${k}=${v}`);
+  pairs.sort();
+  const dataCheckString = pairs.join("\n");
+
+  const secretKey = getWebAppSecretKey(BOT_TOKEN);
+  const calc = crypto.createHmac("sha256", secretKey).update(dataCheckString).digest("hex");
+  if (calc !== hash) return { ok: false, reason: "bad hash" };
+
+  const userStr = url.get("user");
+  let user = null;
+  try { user = userStr ? JSON.parse(userStr) : null; } catch {}
+  if (!user?.id) return { ok: false, reason: "no user" };
+
+  return { ok: true, user };
+}
+function requireAdminWebApp(req, res, next) {
+  const initData = req.get("X-Telegram-Init-Data") || req.body?.initData || req.query?.initData;
+  const v = checkWebAppInitData(initData);
+  if (!v.ok) return res.status(401).json({ ok: false, error: v.reason || "unauthorized" });
+  if (!ADMIN_IDS.includes(v.user.id)) return res.status(403).json({ ok: false, error: "forbidden" });
+  req.tgAdmin = v.user;
+  next();
+}
+
+// ───────── ADMIN MINI-APP API (used by /admin-app) ─────────
+app.get("/api/admin/orders", requireAdminWebApp, (req, res) => {
+  const latest = [...orders].slice(-100).reverse();
+  res.json({
+    ok: true,
+    orders: latest.map(o => ({
+      id: o.id,
+      customerChatId: o.customerChatId,
+      name: o.name,
+      phone: o.phone,
+      address: o.address,
+      status: o.status,
+      statusStage: o.statusStage || (o.status === "completed" ? 2 : o.status === "out_for_delivery" ? 1 : o.status === "canceled" ? -1 : 0),
+      items: o.items,
+      createdAt: o.createdAt,
+    })),
+  });
+});
+
+// Update stage: 0=Preparing,1=Out for delivery,2=Delivered,-1=Canceled
+app.post("/api/admin/orders/:id/stage", requireAdminWebApp, async (req, res) => {
+  const id = Number(req.params.id);
+  const { stage } = req.body || {};
+  const o = findOrder(id);
+  if (!o) return res.status(404).json({ ok: false, error: "not_found" });
+
+  o.statusStage = Number(stage);
+  if (o.statusStage === 1) o.status = "out_for_delivery";
+  if (o.statusStage === 2) o.status = "completed";
+  if (o.statusStage === -1) o.status = "canceled";
+
+  const stageText = (s => s === 1 ? "Out for delivery" : s === 2 ? "Delivered" : s === -1 ? "Canceled" : "Preparing")(o.statusStage);
+  try {
+    await tgSendMessage(o.customerChatId, `📦 *Status update*: Your order is now *${stageText}*.`, { parse_mode: "Markdown" });
+  } catch {}
+  res.json({ ok: true });
+});
+
+// Send delivery/tracking link to customer
+app.post("/api/admin/orders/:id/sendlink", requireAdminWebApp, async (req, res) => {
+  const id = Number(req.params.id);
+  const { link } = req.body || {};
+  const o = findOrder(id);
+  if (!o) return res.status(404).json({ ok: false, error: "not_found" });
+  if (!link) return res.status(400).json({ ok: false, error: "missing_link" });
+
+  await tgSendMessage(
+    o.customerChatId,
+    `🛵 Delivery link:\n${link}\n\nTap below once you receive your order.`,
+    { reply_markup: { inline_keyboard: [[{ text: "📦 Mark as Received", callback_data: "order:received" }]] } }
+  );
+  o.status = "out_for_delivery";
+  o.statusStage = 1;
+  res.json({ ok: true });
+});
+
 // ───────── CALLBACKS ─────────
 async function handleCallbackQuery(cbq) {
   const chatId = cbq.message.chat.id;
@@ -335,7 +432,7 @@ async function handleCallbackQuery(cbq) {
     return;
   }
 
-  // ADMIN CALLBACKS
+  // ADMIN CALLBACKS (chat-based admin center)
   if (data.startsWith("admin:")) {
     if (!isAdmin(chatId)) { await tgSendMessage(chatId, "⛔ Unauthorized."); return; }
     const [, action, arg] = data.split(":");
@@ -375,6 +472,7 @@ async function handleCallbackQuery(cbq) {
         const o = findOrder(id);
         if (!o) return tgSendMessage(chatId, "Order not found.");
         o.status = "completed";
+        o.statusStage = 2;
         await tgSendMessage(chatId, `✅ Order #${id} marked completed.`);
         await tgSendMessage(o.customerChatId, "✅ Your order has been marked *Completed*. Thank you!", { parse_mode: "Markdown" });
         break;
@@ -384,6 +482,7 @@ async function handleCallbackQuery(cbq) {
         const o = findOrder(id);
         if (!o) return tgSendMessage(chatId, "Order not found.");
         o.status = "canceled";
+        o.statusStage = -1;
         await tgSendMessage(chatId, `❌ Order #${id} canceled.`);
         await tgSendMessage(o.customerChatId, "❌ Your order has been *canceled*. If this is a mistake, please /start again.", { parse_mode: "Markdown" });
         break;
@@ -476,7 +575,7 @@ async function handleCallbackQuery(cbq) {
   if (data === "order:received") {
     s.status = "delivered";
     const o = orders.find(x => x.customerChatId === chatId && x.status !== "canceled");
-    if (o) o.status = "delivered";
+    if (o) { o.status = "delivered"; o.statusStage = 2; }
     await tgSendMessage(chatId, "✅ Thank you for confirming! We’re glad your order arrived safely. 💙");
     for (const adminId of ADMIN_IDS) {
       await tgSendMessage(adminId, `📦 Customer *${s.name || chatId}* marked the order as *Received*.`, { parse_mode: "Markdown" });
@@ -521,6 +620,7 @@ async function handleMessage(msg) {
     );
     await tgSendMessage(chatId, `✅ Delivery link sent to customer for Order #${id}.`);
     o.status = "out_for_delivery";
+    o.statusStage = 1;
     return;
   }
 
@@ -565,8 +665,6 @@ async function handleMessage(msg) {
     return tgSendMessage(chatId, "📝 Please enter your name:");
   }
   if (text === "/contact") return startContactAdmin(chatId);
-
-  // NEW: /status (you advertised it in setMyCommands)
   if (text === "/status") {
     const lastOrder = [...orders].reverse().find(o => o.customerChatId === chatId);
     if (!lastOrder) return tgSendMessage(chatId, "📦 No orders found yet.");
@@ -703,6 +801,7 @@ async function handlePhotoOrDocument(msg) {
     items: [...(s.cart || [])],
     paymentProof: s.paymentProof || null,
     status: "paid",
+    statusStage: 0,
     createdAt: new Date().toISOString(),
   };
   orders.push(order);

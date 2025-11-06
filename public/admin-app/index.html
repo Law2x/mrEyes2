@@ -4,50 +4,56 @@
   <meta charset="utf-8" />
   <meta
     name="viewport"
-    content="width=device-width, initial-scale=1, viewport-fit=cover"
+    content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover"
   />
-  <title>Yelo🟡Spot — Admin</title>
+  <title>Yelo🟡Spot — Admin Dashboard</title>
   <link rel="stylesheet" href="./style.css" />
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
 </head>
 <body>
-  <div id="app">
-    <header class="topbar glass">
-      <div class="brand">
-        <span class="logo-dot">●</span>
-        <span class="brand-name">Yelo<span class="y">🟡</span>Spot</span>
-        <span class="divider">—</span>
-        <span class="brand-sub">Admin Dashboard</span>
-      </div>
+  <header class="topbar glass">
+    <div class="brand">
+      <span class="logo-dot">●</span>
+      <span class="brand-name">Yelo<span class="y">🟡</span>Spot</span>
+      <span class="divider">—</span>
+      <span class="brand-sub">Admin Dashboard</span>
+    </div>
+    <div class="topbar-actions">
+      <div class="last-updated" id="lastUpdated">Last updated: —</div>
+      <button id="refreshBtn" class="btn pill primary">↻ Refresh</button>
+    </div>
+  </header>
 
-      <div class="topbar-actions">
-        <div class="last-updated" id="lastUpdated">—</div>
-        <button id="refreshBtn" class="btn pill primary">↻ Refresh</button>
-      </div>
-    </header>
+  <!-- Status counters (click to filter) -->
+  <section class="stats-row">
+    <button class="stat-card" data-filter="all">
+      <div class="stat-value" id="statAll">0</div>
+      <div class="stat-label">All</div>
+    </button>
+    <button class="stat-card" data-filter="0">
+      <div class="stat-value" id="statConfirmed">0</div>
+      <div class="stat-label">Order Confirmed</div>
+    </button>
+    <button class="stat-card" data-filter="1">
+      <div class="stat-value" id="statOutForDelivery">0</div>
+      <div class="stat-label">Out for Delivery</div>
+    </button>
+    <button class="stat-card" data-filter="2">
+      <div class="stat-value" id="statDelivered">0</div>
+      <div class="stat-label">Delivered</div>
+    </button>
+    <button class="stat-card" data-filter="-1">
+      <div class="stat-value" id="statCanceled">0</div>
+      <div class="stat-label">Canceled</div>
+    </button>
+  </section>
 
-    <section class="summary-row">
-      <button class="chip glass" data-filter="all">
-        All: <strong id="count-all">0</strong>
-      </button>
-      <button class="chip glass" data-filter="0">
-        Preparing: <strong id="count-prep">0</strong>
-      </button>
-      <button class="chip glass" data-filter="1">
-        On the way: <strong id="count-way">0</strong>
-      </button>
-      <button class="chip glass" data-filter="2">
-        Delivered: <strong id="count-done">0</strong>
-      </button>
-      <button class="chip glass" data-filter="-1">
-        Canceled: <strong id="count-cancel">0</strong>
-      </button>
-    </section>
+  <!-- Orders list -->
+  <main id="orders" class="orders"></main>
 
-    <main id="list" class="list"></main>
-  </div>
+  <!-- Inline toast -->
+  <div id="toast" class="toast" hidden></div>
 
-  <!-- Telegram WebApp SDK (safe to include; does nothing outside TG) -->
-  <script src="https://telegram.org/js/telegram-web-app.js"></script>
-  <script src="./app.js" type="module"></script>
+  <script src="./app.js"></script>
 </body>
 </html>

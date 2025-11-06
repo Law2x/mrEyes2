@@ -1,31 +1,68 @@
-// db.js — Supabase/Postgres using explicit IPv4 host (fixes ENETUNREACH on Render)
+// db.js — Supabase/Postgres, IPv4-first with safe fallback (no top-level await)
 import pkgPg from "pg";
-import dns from "dns/promises";
+import dns from "dns";
+import dnsAsync from "dns/promises";
 const { Pool } = pkgPg;
 
-const dbUrl = new URL(process.env.DATABASE_URL);
+// IPv4-first lookup passed to pg so connections prefer A records.
+const ipv4Lookup = (hostname, options, cb) =>
+  dns.lookup(hostname, { ...options, family: 4, hints: dns.ADDRCONFIG }, cb);
 
-// Resolve the Supabase hostname to IPv4 once at boot
-const { address: host4 } = await dns.lookup(dbUrl.hostname, { family: 4, all: false });
+let pool;
 
-// Create pool using explicit IPv4 host (not the connectionString)
-export const pool = new Pool({
-  host: host4,
-  port: Number(dbUrl.port || 5432),
-  user: decodeURIComponent(dbUrl.username),
-  password: decodeURIComponent(dbUrl.password),
-  database: dbUrl.pathname.replace(/^\//, ""),
-  ssl: { rejectUnauthorized: false }, // Supabase requires SSL
-  keepAlive: true,
-});
+// Build a pool in two phases: (1) normal connString + ipv4 lookup,
+// (2) on first failure, resolve IPv4 and reconnect using discrete fields.
+async function buildPool() {
+  if (pool) return pool;
 
-// Optional quick DB probe
+  const conn = process.env.DATABASE_URL;
+  if (!conn) throw new Error("DATABASE_URL is not set");
+
+  // Attempt 1: normal connection string but force IPv4 via lookup
+  try {
+    pool = new Pool({
+      connectionString: conn,
+      ssl: { rejectUnauthorized: false },
+      keepAlive: true,
+      lookup: ipv4Lookup,
+    });
+    // quick probe
+    await pool.query("SELECT 1");
+    return pool;
+  } catch (e1) {
+    // Fall back to explicit IPv4 host if IPv6 or DNS resolution causes issues
+    try {
+      const u = new URL(conn);
+      const { address: host4 } = await dnsAsync.lookup(u.hostname, { family: 4 });
+      pool = new Pool({
+        host: host4,
+        port: Number(u.port || 5432),
+        user: decodeURIComponent(u.username),
+        password: decodeURIComponent(u.password),
+        database: u.pathname.replace(/^\//, ""),
+        ssl: { rejectUnauthorized: false },
+        keepAlive: true,
+      });
+      await pool.query("SELECT 1");
+      return pool;
+    } catch (e2) {
+      // surface the original + fallback errors
+      const err = new Error(`DB connect failed (primary & fallback): ${e1?.code || e1} | ${e2?.code || e2}`);
+      err.first = e1;
+      err.second = e2;
+      throw err;
+    }
+  }
+}
+
 export async function pingDb() {
-  await pool.query("SELECT 1");
+  const p = await buildPool();
+  await p.query("SELECT 1");
 }
 
 export async function dbInit() {
-  await pool.query(`
+  const p = await buildPool();
+  await p.query(`
     create table if not exists orders (
       id serial primary key,
       customer_chat_id bigint not null,
@@ -46,6 +83,7 @@ export async function dbInit() {
   `);
 }
 
+// Row mapper
 const mapRow = (r) => ({
   id: r.id,
   customerChatId: r.customer_chat_id,
@@ -64,7 +102,8 @@ const mapRow = (r) => ({
 });
 
 export async function createOrder({ customerChatId, name, phone, address, coords, items, paymentProof }) {
-  const res = await pool.query(
+  const p = await buildPool();
+  const res = await p.query(
     `insert into orders
       (customer_chat_id, name, phone, address, coords_lat, coords_lon, items, payment_proof, status, status_stage)
      values ($1,$2,$3,$4,$5,$6,$7,$8,'paid',0)
@@ -84,7 +123,8 @@ export async function createOrder({ customerChatId, name, phone, address, coords
 }
 
 export async function listRecentOrders(limit = 50) {
-  const r = await pool.query(
+  const p = await buildPool();
+  const r = await p.query(
     `select id, customer_chat_id, name, phone, address,
             coords_lat, coords_lon, items, payment_proof,
             status, status_stage, delivery_link, created_at, updated_at
@@ -97,7 +137,8 @@ export async function listRecentOrders(limit = 50) {
 }
 
 export async function getOrderById(id) {
-  const r = await pool.query(
+  const p = await buildPool();
+  const r = await p.query(
     `select id, customer_chat_id, name, phone, address,
             coords_lat, coords_lon, items, payment_proof,
             status, status_stage, delivery_link, created_at, updated_at
@@ -109,7 +150,8 @@ export async function getOrderById(id) {
 }
 
 export async function updateOrderStage(id, stage) {
-  await pool.query(
+  const p = await buildPool();
+  await p.query(
     `update orders set
        status_stage=$1,
        status=case
@@ -125,7 +167,8 @@ export async function updateOrderStage(id, stage) {
 }
 
 export async function setDeliveryLink(id, link) {
-  await pool.query(
+  const p = await buildPool();
+  await p.query(
     `update orders set delivery_link=$1, status_stage=1, status='out_for_delivery', updated_at=now()
      where id=$2`,
     [link, id]
@@ -133,7 +176,8 @@ export async function setDeliveryLink(id, link) {
 }
 
 export async function markReceivedByChat(customerChatId) {
-  await pool.query(
+  const p = await buildPool();
+  await p.query(
     `update orders
        set status_stage=2, status='completed', updated_at=now()
      where customer_chat_id=$1
@@ -142,6 +186,6 @@ export async function markReceivedByChat(customerChatId) {
   );
 }
 
-// Clean shutdown (optional)
-process.on("SIGTERM", () => { pool.end().catch(() => {}); });
-process.on("SIGINT",  () => { pool.end().catch(() => {}); });
+// Nice-to-have: clean shutdown
+process.on("SIGTERM", () => { if (pool) pool.end().catch(() => {}); });
+process.on("SIGINT",  () => { if (pool) pool.end().catch(() => {}); });

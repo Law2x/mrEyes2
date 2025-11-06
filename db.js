@@ -1,11 +1,23 @@
-// db.js
+// db.js — Supabase/Postgres (Render-safe, IPv4-first)
 import pkgPg from "pg";
+import dns from "dns";
 const { Pool } = pkgPg;
+
+// Force IPv4 for any DNS lookups used by pg
+const ipv4Lookup = (hostname, options, cb) =>
+  dns.lookup(hostname, { ...options, family: 4, hints: dns.ADDRCONFIG }, cb);
 
 export const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: process.env.PGSSLMODE ? { rejectUnauthorized: false } : undefined,
+  ssl: { rejectUnauthorized: false },   // Supabase requires SSL
+  keepAlive: true,
+  lookup: ipv4Lookup,                   // 👈 avoid ENETUNREACH on IPv6-only resolution
 });
+
+// Optional: quick connectivity probe you can call from /health
+export async function pingDb() {
+  await pool.query("SELECT 1");
+}
 
 export async function dbInit() {
   await pool.query(`
@@ -29,6 +41,7 @@ export async function dbInit() {
   `);
 }
 
+// Normalize row → JS object
 const mapRow = (r) => ({
   id: r.id,
   customerChatId: r.customer_chat_id,
@@ -124,3 +137,7 @@ export async function markReceivedByChat(customerChatId) {
     [customerChatId]
   );
 }
+
+// Optional: clean shutdown
+process.on("SIGTERM", () => { pool.end().catch(() => {}); });
+process.on("SIGINT",  () => { pool.end().catch(() => {}); });

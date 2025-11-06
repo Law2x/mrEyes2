@@ -1,4 +1,4 @@
-// db.js — Supabase/Postgres, IPv4-first with safe fallback (no top-level await)
+// db.js — Supabase/Postgres, IPv4-first with safe fallback + enhancements
 import pkgPg from "pg";
 import dns from "dns";
 import dnsAsync from "dns/promises";
@@ -10,6 +10,27 @@ const ipv4Lookup = (hostname, options, cb) =>
 
 let pool;
 
+// --- Utility: structured error logging ---
+function logDbError(stage, err) {
+  console.error(`[DB:${stage}] ${err.code || err.message}`, {
+    detail: err.detail,
+    hint: err.hint,
+    stack: err.stack,
+  });
+}
+
+// --- Utility: retry wrapper for transient failures ---
+async function retryQuery(fn, retries = 3, delay = 500) {
+  for (let i = 0; i < retries; i++) {
+    try {
+      return await fn();
+    } catch (err) {
+      if (i === retries - 1) throw err;
+      await new Promise(res => setTimeout(res, delay * (i + 1)));
+    }
+  }
+}
+
 // Build a pool in two phases: (1) normal connString + ipv4 lookup,
 // (2) on first failure, resolve IPv4 and reconnect using discrete fields.
 async function buildPool() {
@@ -18,19 +39,20 @@ async function buildPool() {
   const conn = process.env.DATABASE_URL;
   if (!conn) throw new Error("DATABASE_URL is not set");
 
-  // Attempt 1: normal connection string but force IPv4 via lookup
   try {
     pool = new Pool({
       connectionString: conn,
       ssl: { rejectUnauthorized: false },
       keepAlive: true,
+      max: 10,
+      idleTimeoutMillis: 30000,
+      connectionTimeoutMillis: 5000,
       lookup: ipv4Lookup,
     });
-    // quick probe
-    await pool.query("SELECT 1");
+    await retryQuery(() => pool.query("SELECT 1"));
     return pool;
   } catch (e1) {
-    // Fall back to explicit IPv4 host if IPv6 or DNS resolution causes issues
+    logDbError("primary", e1);
     try {
       const u = new URL(conn);
       const { address: host4 } = await dnsAsync.lookup(u.hostname, { family: 4 });
@@ -42,12 +64,17 @@ async function buildPool() {
         database: u.pathname.replace(/^\//, ""),
         ssl: { rejectUnauthorized: false },
         keepAlive: true,
+        max: 10,
+        idleTimeoutMillis: 30000,
+        connectionTimeoutMillis: 5000,
       });
-      await pool.query("SELECT 1");
+      await retryQuery(() => pool.query("SELECT 1"));
       return pool;
     } catch (e2) {
-      // surface the original + fallback errors
-      const err = new Error(`DB connect failed (primary & fallback): ${e1?.code || e1} | ${e2?.code || e2}`);
+      logDbError("fallback", e2);
+      const err = new Error(
+        `DB connect failed (primary & fallback): ${e1?.code || e1} | ${e2?.code || e2}`
+      );
       err.first = e1;
       err.second = e2;
       throw err;
@@ -60,30 +87,43 @@ export async function pingDb() {
   await p.query("SELECT 1");
 }
 
+// Transactional init for safety
 export async function dbInit() {
   const p = await buildPool();
-  await p.query(`
-    create table if not exists orders (
-      id serial primary key,
-      customer_chat_id bigint not null,
-      name text,
-      phone text,
-      address text,
-      coords_lat double precision,
-      coords_lon double precision,
-      items jsonb not null default '[]',
-      payment_proof text,
-      status text not null default 'paid',
-      status_stage int not null default 0,
-      delivery_link text,
-      created_at timestamptz not null default now(),
-      updated_at timestamptz not null default now()
-    );
-    create index if not exists idx_orders_created_at on orders(created_at desc);
-  `);
+  await p.query("BEGIN");
+  try {
+    await p.query(`
+      create table if not exists orders (
+        id serial primary key,
+        customer_chat_id bigint not null,
+        name text,
+        phone text,
+        address text,
+        coords_lat double precision,
+        coords_lon double precision,
+        items jsonb not null default '[]',
+        payment_proof text,
+        status text not null default 'paid',
+        status_stage int not null default 0,
+        delivery_link text,
+        created_at timestamptz not null default now(),
+        updated_at timestamptz not null default now()
+      );
+    `);
+    await p.query("create index if not exists idx_orders_created_at on orders(created_at desc);");
+    await p.query("COMMIT");
+  } catch (err) {
+    await p.query("ROLLBACK");
+    throw err;
+  }
 }
 
-// Row mapper
+// Safe JSON parsing
+const safeParse = (val) => {
+  try { return JSON.parse(val); }
+  catch { return []; }
+};
+
 const mapRow = (r) => ({
   id: r.id,
   customerChatId: r.customer_chat_id,
@@ -92,7 +132,7 @@ const mapRow = (r) => ({
   address: r.address,
   coordsLat: r.coords_lat,
   coordsLon: r.coords_lon,
-  items: Array.isArray(r.items) ? r.items : (r.items ? JSON.parse(r.items) : []),
+  items: Array.isArray(r.items) ? r.items : (r.items ? safeParse(r.items) : []),
   paymentProof: r.payment_proof,
   status: r.status,
   statusStage: r.status_stage,
@@ -101,6 +141,7 @@ const mapRow = (r) => ({
   updatedAt: r.updated_at,
 });
 
+// --- CRUD functions ---
 export async function createOrder({ customerChatId, name, phone, address, coords, items, paymentProof }) {
   const p = await buildPool();
   const res = await p.query(
@@ -186,6 +227,12 @@ export async function markReceivedByChat(customerChatId) {
   );
 }
 
-// Nice-to-have: clean shutdown
-process.on("SIGTERM", () => { if (pool) pool.end().catch(() => {}); });
-process.on("SIGINT",  () => { if (pool) pool.end().catch(() => {}); });
+// --- Graceful shutdown ---
+async function shutdown() {
+  if (pool) {
+    console.log("Closing DB pool...");
+    await pool.end().catch(err => console.error("Pool close error", err));
+  }
+}
+process.on("SIGTERM", shutdown);
+process.on("SIGINT", shutdown);

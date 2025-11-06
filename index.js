@@ -44,7 +44,7 @@ const PRICE_LIST = {
     { label: "₱700 — 0.042",   callback: "amt:₱700 — 0.042" },
     { label: "₱1,000 — 0.056", callback: "amt:₱1,000 — 0.056" },
     { label: "₱2,000 — Half",  callback: "amt:₱2,000 — Half" },
-    { label: "₱3,800 — 8",     callback: "amt:₱3,800 — 8" },
+    { label: "₱3,800 — G",     callback: "amt:₱3,800 — 8" },
   ],
   syringe: [
     { label: "₱500 — 12 units",   callback: "amt:₱500 — 12 units" },
@@ -418,6 +418,30 @@ app.post("/api/admin/orders/:id/sendlink", requireAdminWebApp, async (req, res) 
   } catch (e) {
     console.error(e);
     res.status(500).json({ ok: false, error: "db_error" });
+  }
+});
+
+// ───────── SHOP OPEN/CLOSE API (for Admin Mini-App) ─────────
+app.get("/api/admin/shop", requireAdminWebApp, (req, res) => {
+  try {
+    res.json({ ok: true, open: SHOP_OPEN });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ ok: false, error: "shop_state_error" });
+  }
+});
+
+app.post("/api/admin/shop", requireAdminWebApp, (req, res) => {
+  try {
+    const { open } = req.body || {};
+    if (typeof open !== "boolean") {
+      return res.status(400).json({ ok: false, error: "invalid_open_flag" });
+    }
+    SHOP_OPEN = open;
+    res.json({ ok: true, open: SHOP_OPEN });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ ok: false, error: "toggle_failed" });
   }
 });
 

@@ -1,207 +1,178 @@
-// ===== Helpers =====
-const $ = (sel, root = document) => root.querySelector(sel);
-const $$ = (sel, root = document) => Array.from(root.querySelectorAll(sel));
+// app.js
+const $ = (sel, el = document) => el.querySelector(sel);
+const $$ = (sel, el = document) => [...el.querySelectorAll(sel)];
 
-function escapeHtml(s=''){ return s.replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+let ORDERS = [];
+let ACTIVE = "all"; // all | confirmed | out | delivered | canceled
 
-function fmtDate(iso) {
-  if (!iso) return "—";
-  const d = new Date(iso);
-  return d.toLocaleString(undefined, {
-    year: "numeric", month: "short", day: "2-digit",
-    hour: "2-digit", minute: "2-digit",
-  });
+const stageToChip = (s) =>
+  s === 2 ? ["Delivered", "ok"] :
+  s === 1 ? ["Out for delivery", "warn"] :
+  s === -1 ? ["Canceled", "bad"] : ["Confirmed", "warn"];
+
+function peso(n){ return `₱${Number(n || 0).toLocaleString()}`; }
+
+// Pull a peso amount from an item.amount string (e.g. "₱700 • Iron Horse")
+function parseItemPeso(txt=""){
+  let sum = 0;
+  const re = /₱\s*([\d,]+)/g;
+  let m;
+  while((m = re.exec(txt))){ sum += Number(m[1].replace(/,/g,'')); }
+  return sum;
+}
+function orderTotal(o){
+  if (!Array.isArray(o.items)) return 0;
+  return o.items.reduce((t, it) => t + parseItemPeso(it.amount || ""), 0);
 }
 
-function pillForStatus(status){
-  switch(status){
-    case 'paid': return `<span class="pill accent">Confirmed</span>`;
-    case 'out_for_delivery': return `<span class="pill warn">Out for delivery</span>`;
-    case 'completed': return `<span class="pill ok">Delivered</span>`;
-    case 'canceled': return `<span class="pill danger">Canceled</span>`;
-    default: return `<span class="pill">${escapeHtml(status||'—')}</span>`;
-  }
-}
-function pillForStage(stage){
-  const map = { "-1":"Canceled","0":"Confirmed","1":"Out for delivery","2":"Delivered" };
-  const cls = stage===-1?'danger':stage===0?'accent':stage===1?'warn':'ok';
-  return `<span class="pill ${cls}">${map[String(stage)]||'—'}</span>`;
-}
+// Date range helpers for Sales Tracker
+function startOfToday(){ const d=new Date(); d.setHours(0,0,0,0); return d; }
+function startOfWeek(){ const d=startOfToday(); const wd=(d.getDay()+6)%7; d.setDate(d.getDate()-wd); return d; } // Mon
+function startOfMonth(){ const d=startOfToday(); d.setDate(1); return d; }
 
-function toast(msg, t=1800){
-  const el = $('#toast');
-  el.textContent = msg;
-  el.hidden = false;
-  setTimeout(()=>{ el.hidden = true; }, t);
+// UI render
+function setActiveFilter(name){
+  ACTIVE = name;
+  const label =
+    name==="all" ? "All orders" :
+    name==="confirmed" ? "Order confirmed" :
+    name==="out" ? "Out for delivery" :
+    name==="delivered" ? "Delivered" :
+    name==="canceled" ? "Canceled" : "All orders";
+  $("#activeFilter").textContent = label;
+  renderList();
 }
 
-// ===== Telegram WebApp initData header =====
-const tg = window.Telegram?.WebApp;
-if (tg) {
-  tg.expand(); // fullscreen feel inside Telegram
-}
-const INIT_DATA = tg?.initData || "";
-const BASE_HEADERS = {
-  "Content-Type": "application/json",
-  "X-Telegram-Init-Data": INIT_DATA
-};
+function renderStats(){
+  const all = ORDERS.length;
+  const confirmed = ORDERS.filter(o => o.statusStage === 0).length;
+  const out = ORDERS.filter(o => o.statusStage === 1).length;
+  const delivered = ORDERS.filter(o => o.statusStage === 2).length;
+  const canceled = ORDERS.filter(o => o.statusStage === -1).length;
 
-// ===== State =====
-let ALL = [];
-let FILTER = "all"; // "all" | -1 | 0 | 1 | 2
+  $("#statAll").textContent = all;
+  $("#statConfirmed").textContent = confirmed;
+  $("#statOut").textContent = out;
+  $("#statDelivered").textContent = delivered;
+  $("#statCanceled").textContent = canceled;
 
-// ===== Rendering =====
-function renderStats(list){
-  const all = list.length;
-  const c0 = list.filter(o => o.statusStage === 0).length;
-  const c1 = list.filter(o => o.statusStage === 1).length;
-  const c2 = list.filter(o => o.statusStage === 2).length;
-  const cX = list.filter(o => o.statusStage === -1).length;
-  $('#statAll').textContent = all;
-  $('#statConfirmed').textContent = c0;
-  $('#statOutForDelivery').textContent = c1;
-  $('#statDelivered').textContent = c2;
-  $('#statCanceled').textContent = cX;
+  // Sales tracker
+  const range = $("#salesRange").value;
+  const from =
+    range==="today" ? startOfToday() :
+    range==="week" ? startOfWeek() :
+    range==="month" ? startOfMonth() : new Date(0);
+
+  const sales = ORDERS
+    .filter(o => o.statusStage === 2 && new Date(o.createdAt) >= from)
+    .reduce((sum, o) => sum + orderTotal(o), 0);
+
+  $("#statSales").textContent = peso(sales);
 }
 
-function renderOrders(){
-  const wrap = $('#orders');
-  const list = FILTER === "all" ? ALL : ALL.filter(o => o.statusStage === Number(FILTER));
-  if (!list.length){
-    wrap.innerHTML = `<div class="card" style="opacity:.8">No orders${FILTER==='all'?'':' in this filter'}.</div>`;
-    return;
-  }
-  wrap.innerHTML = list.map(renderOrderCard).join("");
-  bindOrderActions();
-}
+function renderList(){
+  const wrap = $("#ordersList");
+  wrap.innerHTML = "";
 
-function renderOrderCard(o) {
-  const items = (o.items || []).map(i => `• ${escapeHtml(i.category)} — ${escapeHtml(i.amount)}`).join("<br>");
-  const disabled = (o.statusStage === 2 || o.statusStage === -1) ? "disabled" : "";
-  return `
-  <div class="card" data-id="${o.id}">
-    <div class="card-head">
-      <div class="left">
-        <span class="pill">#${o.id}</span>
-        <small class="timestamp">📅 Received from customer: ${fmtDate(o.createdAt)}</small>
-      </div>
-      <div class="right">
-        ${pillForStatus(o.status)} ${pillForStage(o.statusStage)}
-      </div>
-    </div>
+  let list = [...ORDERS];
+  if (ACTIVE === "confirmed") list = list.filter(o => o.statusStage === 0);
+  if (ACTIVE === "out") list = list.filter(o => o.statusStage === 1);
+  if (ACTIVE === "delivered") list = list.filter(o => o.statusStage === 2);
+  if (ACTIVE === "canceled") list = list.filter(o => o.statusStage === -1);
 
-    <div class="card-title">${escapeHtml(o.name || "—")} • ${escapeHtml(o.phone || "—")}</div>
-    <div class="card-sub">${escapeHtml(o.address || "—")}</div>
+  const tmpl = $("#orderCardTmpl");
 
-    <div class="items">
-      ${items || "—"}
-    </div>
+  list.forEach((o, idx) => {
+    const node = tmpl.content.cloneNode(true);
+    $(".badge.id", node).textContent = `#${o.id}`;
 
-    <div class="actions">
-      <button class="btn" data-action="sendlink" data-id="${o.id}" ${disabled}>Send link</button>
-      <div class="select-wrap">
-        <select data-action="stage" data-id="${o.id}" ${disabled} title="Update status">
-          <option value="0" ${o.statusStage===0?"selected":""}>Order confirmed</option>
-          <option value="1" ${o.statusStage===1?"selected":""}>Out for delivery</option>
-          <option value="2" ${o.statusStage===2?"selected":""}>Delivered</option>
-          <option value="-1" ${o.statusStage===-1?"selected":""}>Canceled</option>
-        </select>
-      </div>
-      <button class="btn danger" data-action="cancel" data-id="${o.id}" ${disabled}>Cancel</button>
-    </div>
-  </div>`;
-}
+    // Received timestamp
+    const dt = new Date(o.createdAt);
+    $(".rcvdtxt", node).textContent =
+      dt.toLocaleString(undefined, { month: "short", day: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
 
-function bindOrderActions(){
-  // filter by clicking counters
-  $$('.stat-card').forEach(btn=>{
-    btn.onclick = ()=>{
-      FILTER = btn.dataset.filter || "all";
-      renderOrders();
-    };
-  });
+    // Chips
+    const [chipText, chipClass] = stageToChip(o.statusStage);
+    const chips = $(".chips", node);
+    const chip = document.createElement("span");
+    chip.className = `chip ${chipClass}`;
+    chip.textContent = chipText;
+    chips.appendChild(chip);
 
-  // per-card actions
-  $$('#orders [data-action="sendlink"]').forEach(btn=>{
-    btn.onclick = async ()=>{
-      const id = Number(btn.dataset.id);
+    $(".title", node).textContent = `${o.name || "Customer"} • ${o.phone || "—"}`;
+    $(".addr", node).textContent = o.address || "—";
+
+    const items = $(".items", node);
+    items.innerHTML = (o.items || []).map(it => `• ${it.category} — ${it.amount}`).join("<br>");
+
+    // Controls
+    const sel = $(".stage", node);
+    sel.value = String(o.statusStage);
+    sel.addEventListener("change", async () => {
+      const stage = Number(sel.value);
+      await fetch(`/api/admin/orders/${o.id}/stage`, {
+        method: "POST", headers:{ "Content-Type":"application/json" },
+        body: JSON.stringify({ stage })
+      });
+      await load(); // refresh counts + list
+    });
+
+    $(".send-link", node).addEventListener("click", async () => {
       const link = prompt("Paste delivery/tracking link:");
       if (!link) return;
-      btn.disabled = true;
-      try{
-        const r = await fetch(`/api/admin/orders/${id}/sendlink`, {
-          method: "POST",
-          headers: BASE_HEADERS,
-          body: JSON.stringify({ link })
-        });
-        const j = await r.json();
-        if (!j.ok) throw new Error(j.error || "Failed");
-        toast("Link sent to customer");
-        await load(); // refresh
-      }catch(e){ console.error(e); toast("Failed to send link"); }
-      btn.disabled = false;
-    };
-  });
+      await fetch(`/api/admin/orders/${o.id}/sendlink`, {
+        method: "POST", headers:{ "Content-Type":"application/json" },
+        body: JSON.stringify({ link })
+      });
+      await load();
+    });
 
-  $$('#orders [data-action="stage"]').forEach(sel=>{
-    sel.onchange = async ()=>{
-      const id = Number(sel.dataset.id);
-      const stage = Number(sel.value); // -1 | 0 | 1 | 2
-      sel.disabled = true;
-      try{
-        const r = await fetch(`/api/admin/orders/${id}/stage`, {
-          method: "POST",
-          headers: BASE_HEADERS,
-          body: JSON.stringify({ stage })
-        });
-        const j = await r.json();
-        if (!j.ok) throw new Error(j.error || "Failed");
-        toast("Status updated");
-        await load(); // refresh
-      }catch(e){ console.error(e); toast("Failed to update"); }
-      sel.disabled = false;
-    };
-  });
+    $(".cancel", node).addEventListener("click", async () => {
+      if (!confirm("Cancel this order?")) return;
+      await fetch(`/api/admin/orders/${o.id}/stage`, {
+        method: "POST", headers:{ "Content-Type":"application/json" },
+        body: JSON.stringify({ stage: -1 })
+      });
+      await load();
+    });
 
-  $$('#orders [data-action="cancel"]').forEach(btn=>{
-    btn.onclick = async ()=>{
-      const id = Number(btn.dataset.id);
-      if (!confirm(`Cancel order #${id}?`)) return;
-      btn.disabled = true;
-      try{
-        const r = await fetch(`/api/admin/orders/${id}/stage`, {
-          method: "POST",
-          headers: BASE_HEADERS,
-          body: JSON.stringify({ stage: -1 })
-        });
-        const j = await r.json();
-        if (!j.ok) throw new Error(j.error || "Failed");
-        toast("Order canceled");
-        await load();
-      }catch(e){ console.error(e); toast("Failed to cancel"); }
-      btn.disabled = false;
-    };
+    wrap.appendChild(node);
   });
 }
 
-// ===== Data load =====
 async function load(){
-  try{
-    const r = await fetch("/api/admin/orders", { headers: BASE_HEADERS });
-    const j = await r.json();
-    if (!j.ok) throw new Error(j.error||"Failed");
-    ALL = (j.orders || []).map(o => ({
-      ...o,
-      statusStage: Number(o.statusStage)
-    }));
-    renderStats(ALL);
-    renderOrders();
-    $('#lastUpdated').textContent = `Last updated: ${fmtDate(new Date().toISOString())}`;
-  }catch(e){
-    console.error(e);
-    toast("Failed to load orders");
-  }
+  const initData = window.Telegram?.WebApp?.initData || "";
+  const res = await fetch("/api/admin/orders", {
+    headers: {
+      "Content-Type":"application/json",
+      "X-Telegram-Init-Data": initData
+    }
+  });
+  const j = await res.json();
+  if (!j.ok) { alert("Auth/DB error loading orders"); return; }
+
+  ORDERS = j.orders || [];
+  $("#lastUpdated").textContent = `Last updated: ${new Date().toLocaleString()}`;
+
+  renderStats();
+  renderList();
 }
 
-$('#refreshBtn').onclick = load;
+function bindUI(){
+  $("#btnRefresh").addEventListener("click", load);
+  $$("#statsRow .stat-card[data-filter]").forEach(btn => {
+    btn.addEventListener("click", () => setActiveFilter(btn.dataset.filter));
+  });
+  $("#salesRange").addEventListener("change", renderStats);
+
+  // Telegram UI polish
+  try {
+    const tg = window.Telegram?.WebApp;
+    tg?.expand();
+    tg?.MainButton?.hide();
+    tg?.HeaderColor?.setColorScheme?.("secondary_bg_color");
+  } catch {}
+}
+
+bindUI();
 load();

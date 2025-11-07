@@ -1,138 +1,68 @@
-// db.js — Supabase/Postgres, IPv4-first with safe fallback + enhancements
+// db.js
 import pkgPg from "pg";
-import dns from "dns";
-import dnsAsync from "dns/promises";
 const { Pool } = pkgPg;
 
-// IPv4-first lookup passed to pg so connections prefer A records.
-const ipv4Lookup = (hostname, options, cb) =>
-  dns.lookup(hostname, { ...options, family: 4, hints: dns.ADDRCONFIG }, cb);
+/**
+ * Pool
+ * - Uses DATABASE_URL
+ * - SSL optional via PGSSLMODE env (e.g. "require")
+ */
+export const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: process.env.PGSSLMODE ? { rejectUnauthorized: false } : undefined,
+});
 
-let pool;
-
-// --- Utility: structured error logging ---
-function logDbError(stage, err) {
-  console.error(`[DB:${stage}] ${err.code || err.message}`, {
-    detail: err.detail,
-    hint: err.hint,
-    stack: err.stack,
-  });
-}
-
-// --- Utility: retry wrapper for transient failures ---
-async function retryQuery(fn, retries = 3, delay = 500) {
-  for (let i = 0; i < retries; i++) {
-    try {
-      return await fn();
-    } catch (err) {
-      if (i === retries - 1) throw err;
-      await new Promise(res => setTimeout(res, delay * (i + 1)));
-    }
-  }
-}
-
-// Build a pool in two phases: (1) normal connString + ipv4 lookup,
-// (2) on first failure, resolve IPv4 and reconnect using discrete fields.
-async function buildPool() {
-  if (pool) return pool;
-
-  const conn = process.env.DATABASE_URL;
-  if (!conn) throw new Error("DATABASE_URL is not set");
-
-  try {
-    pool = new Pool({
-      connectionString: conn,
-      ssl: { rejectUnauthorized: false },
-      keepAlive: true,
-      max: 10,
-      idleTimeoutMillis: 30000,
-      connectionTimeoutMillis: 5000,
-      lookup: ipv4Lookup,
-    });
-    await retryQuery(() => pool.query("SELECT 1"));
-    return pool;
-  } catch (e1) {
-    logDbError("primary", e1);
-    try {
-      const u = new URL(conn);
-      const { address: host4 } = await dnsAsync.lookup(u.hostname, { family: 4 });
-      pool = new Pool({
-        host: host4,
-        port: Number(u.port || 5432),
-        user: decodeURIComponent(u.username),
-        password: decodeURIComponent(u.password),
-        database: u.pathname.replace(/^\//, ""),
-        ssl: { rejectUnauthorized: false },
-        keepAlive: true,
-        max: 10,
-        idleTimeoutMillis: 30000,
-        connectionTimeoutMillis: 5000,
-      });
-      await retryQuery(() => pool.query("SELECT 1"));
-      return pool;
-    } catch (e2) {
-      logDbError("fallback", e2);
-      const err = new Error(
-        `DB connect failed (primary & fallback): ${e1?.code || e1} | ${e2?.code || e2}`
-      );
-      err.first = e1;
-      err.second = e2;
-      throw err;
-    }
-  }
-}
-
-export async function pingDb() {
-  const p = await buildPool();
-  await p.query("SELECT 1");
-}
-
-// Transactional init for safety
+/**
+ * Initialize DB schema
+ * - orders: main order table
+ * - order_messages: threaded chat per order (admin/customer)
+ */
 export async function dbInit() {
-  const p = await buildPool();
-  await p.query("BEGIN");
-  try {
-    await p.query(`
-      create table if not exists orders (
-        id serial primary key,
-        customer_chat_id bigint not null,
-        name text,
-        phone text,
-        address text,
-        coords_lat double precision,
-        coords_lon double precision,
-        items jsonb not null default '[]',
-        payment_proof text,
-        status text not null default 'paid',
-        status_stage int not null default 0,
-        delivery_link text,
-        created_at timestamptz not null default now(),
-        updated_at timestamptz not null default now()
-      );
-    `);
-    await p.query("create index if not exists idx_orders_created_at on orders(created_at desc);");
-    await p.query("COMMIT");
-  } catch (err) {
-    await p.query("ROLLBACK");
-    throw err;
-  }
+  await pool.query(`
+    create table if not exists orders (
+      id serial primary key,
+      customer_chat_id bigint not null,
+      name text,
+      phone text,
+      address text,
+      coords_lat double precision,
+      coords_lon double precision,
+      items jsonb not null default '[]',
+      payment_proof text,
+      status text not null default 'paid',
+      status_stage int not null default 0,
+      delivery_link text,
+      created_at timestamptz not null default now(),
+      updated_at timestamptz not null default now()
+    );
+
+    create index if not exists idx_orders_created_at on orders (created_at desc);
+    create index if not exists idx_orders_customer on orders (customer_chat_id);
+
+    create table if not exists order_messages (
+      id serial primary key,
+      order_id int not null references orders(id) on delete cascade,
+      sender text not null check (sender in ('customer','admin')),
+      message text not null,
+      created_at timestamptz not null default now()
+    );
+
+    create index if not exists idx_order_messages_order_time on order_messages (order_id, created_at);
+  `);
 }
 
-// Safe JSON parsing
-const safeParse = (val) => {
-  try { return JSON.parse(val); }
-  catch { return []; }
-};
+/* ───────────────────────── MAP ROW HELPERS ───────────────────────── */
 
-const mapRow = (r) => ({
+const mapOrderRow = (r) => ({
   id: r.id,
   customerChatId: r.customer_chat_id,
   name: r.name,
   phone: r.phone,
   address: r.address,
-  coordsLat: r.coords_lat,
-  coordsLon: r.coords_lon,
-  items: Array.isArray(r.items) ? r.items : (r.items ? safeParse(r.items) : []),
+  coords: (r.coords_lat == null || r.coords_lon == null)
+    ? null
+    : { latitude: r.coords_lat, longitude: r.coords_lon },
+  items: Array.isArray(r.items) ? r.items : (r.items ? JSON.parse(r.items) : []),
   paymentProof: r.payment_proof,
   status: r.status,
   statusStage: r.status_stage,
@@ -141,10 +71,20 @@ const mapRow = (r) => ({
   updatedAt: r.updated_at,
 });
 
-// --- CRUD functions ---
-export async function createOrder({ customerChatId, name, phone, address, coords, items, paymentProof }) {
-  const p = await buildPool();
-  const res = await p.query(
+const mapMsgRow = (r) => ({
+  id: r.id,
+  orderId: r.order_id,
+  sender: r.sender,          // 'customer' | 'admin'
+  message: r.message,
+  createdAt: r.created_at,
+});
+
+/* ───────────────────────── ORDER CRUD ───────────────────────── */
+
+export async function createOrder({
+  customerChatId, name, phone, address, coords, items, paymentProof,
+}) {
+  const res = await pool.query(
     `insert into orders
       (customer_chat_id, name, phone, address, coords_lat, coords_lon, items, payment_proof, status, status_stage)
      values ($1,$2,$3,$4,$5,$6,$7,$8,'paid',0)
@@ -164,8 +104,7 @@ export async function createOrder({ customerChatId, name, phone, address, coords
 }
 
 export async function listRecentOrders(limit = 50) {
-  const p = await buildPool();
-  const r = await p.query(
+  const r = await pool.query(
     `select id, customer_chat_id, name, phone, address,
             coords_lat, coords_lon, items, payment_proof,
             status, status_stage, delivery_link, created_at, updated_at
@@ -174,65 +113,100 @@ export async function listRecentOrders(limit = 50) {
      limit $1`,
     [limit]
   );
-  return r.rows.map(mapRow);
+  return r.rows.map(mapOrderRow);
 }
 
 export async function getOrderById(id) {
-  const p = await buildPool();
-  const r = await p.query(
+  const r = await pool.query(
     `select id, customer_chat_id, name, phone, address,
             coords_lat, coords_lon, items, payment_proof,
             status, status_stage, delivery_link, created_at, updated_at
-     from orders where id=$1`,
+     from orders where id = $1`,
     [id]
   );
   if (r.rowCount === 0) return null;
-  return mapRow(r.rows[0]);
+  return mapOrderRow(r.rows[0]);
+}
+
+/**
+ * Find latest active order for a chat.
+ * "Active" = not canceled (status_stage <> -1). You can narrow further if needed.
+ */
+export async function latestActiveOrderByChatId(customerChatId) {
+  const r = await pool.query(
+    `select id, customer_chat_id, name, phone, address,
+            coords_lat, coords_lon, items, payment_proof,
+            status, status_stage, delivery_link, created_at, updated_at
+     from orders
+     where customer_chat_id = $1
+       and status_stage <> -1
+     order by created_at desc
+     limit 1`,
+    [customerChatId]
+  );
+  if (r.rowCount === 0) return null;
+  return mapOrderRow(r.rows[0]);
 }
 
 export async function updateOrderStage(id, stage) {
-  const p = await buildPool();
-  await p.query(
+  await pool.query(
     `update orders set
-       status_stage=$1,
-       status=case
+       status_stage = $1,
+       status = case
          when $1 = -1 then 'canceled'
          when $1 = 0  then 'paid'
          when $1 = 1  then 'out_for_delivery'
          when $1 = 2  then 'completed'
        end,
-       updated_at=now()
-     where id=$2`,
+       updated_at = now()
+     where id = $2`,
     [stage, id]
   );
 }
 
 export async function setDeliveryLink(id, link) {
-  const p = await buildPool();
-  await p.query(
-    `update orders set delivery_link=$1, status_stage=1, status='out_for_delivery', updated_at=now()
-     where id=$2`,
+  await pool.query(
+    `update orders
+       set delivery_link = $1,
+           status_stage = 1,
+           status = 'out_for_delivery',
+           updated_at = now()
+     where id = $2`,
     [link, id]
   );
 }
 
 export async function markReceivedByChat(customerChatId) {
-  const p = await buildPool();
-  await p.query(
+  await pool.query(
     `update orders
-       set status_stage=2, status='completed', updated_at=now()
-     where customer_chat_id=$1
+       set status_stage = 2,
+           status = 'completed',
+           updated_at = now()
+     where customer_chat_id = $1
        and status_stage <> -1`,
     [customerChatId]
   );
 }
 
-// --- Graceful shutdown ---
-async function shutdown() {
-  if (pool) {
-    console.log("Closing DB pool...");
-    await pool.end().catch(err => console.error("Pool close error", err));
-  }
+/* ───────────────────────── CHAT THREADS ───────────────────────── */
+
+export async function createMessage(orderId, sender, message) {
+  // sender must be 'customer' or 'admin'
+  await pool.query(
+    `insert into order_messages (order_id, sender, message)
+     values ($1, $2, $3)`,
+    [orderId, sender, message]
+  );
 }
-process.on("SIGTERM", shutdown);
-process.on("SIGINT", shutdown);
+
+export async function listMessages(orderId, limit = 200) {
+  const r = await pool.query(
+    `select id, order_id, sender, message, created_at
+     from order_messages
+     where order_id = $1
+     order by created_at asc
+     limit $2`,
+    [orderId, limit]
+  );
+  return r.rows.map(mapMsgRow);
+}

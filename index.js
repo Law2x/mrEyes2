@@ -2,12 +2,11 @@
 import express from "express";
 import fetchPkg from "node-fetch";
 const fetchFn = typeof fetch !== "undefined" ? fetch : fetchPkg;
-import fs from "fs/promises";
 import path from "path";
 import crypto from "crypto";
 import { fileURLToPath } from "url";
 
-// ✅ DB imports (use your db.js)
+// DB helpers
 import {
   dbInit,
   createOrder,
@@ -16,8 +15,6 @@ import {
   updateOrderStage,
   setDeliveryLink,
   markReceivedByChat,
-
-  // NEW chat helpers
   latestActiveOrderByChatId,
   createMessage,
   listMessages,
@@ -31,7 +28,6 @@ const BOT_TOKEN = process.env.BOT_TOKEN;
 const HOST_URL  = process.env.HOST_URL;
 const PORT      = process.env.PORT || 3000;
 
-// Multiple admins: comma-separated list in env, e.g. ADMIN_IDS=123,456
 const ADMIN_IDS = (process.env.ADMIN_IDS || "")
   .split(",")
   .map(s => Number(s.trim()))
@@ -42,7 +38,7 @@ if (ADMIN_IDS.length === 0) console.warn("⚠️ No ADMIN_IDS configured.");
 
 const TELEGRAM_API = `https://api.telegram.org/bot${BOT_TOKEN}`;
 
-// ───────── PRICE LIST ─────────
+// ───────── PRICE LIST (same as yours) ─────────
 const PRICE_LIST = {
   sachet: [
     { label: "₱500 — 0.028",   callback: "amt:₱500 — 0.028" },
@@ -56,11 +52,10 @@ const PRICE_LIST = {
     { label: "₱700 — 20 units",   callback: "amt:₱700 — 20 units" },
     { label: "₱1,000 — 30 units", callback: "amt:₱1,000 — 30 units" },
   ],
-  // Poppers top-level (all ₱700; brands can appear in multiple buckets)
   poppers: [
-    { label: "⚡ Fast-acting",  callback: "cat:poppers_fast" },
-    { label: "🌿 Smooth blend", callback: "cat:poppers_smooth" },
-    { label: "💎 Premium",      callback: "cat:poppers_premium" },
+    { text: "⚡ Fast-acting",  callback: "cat:poppers_fast" },
+    { text: "🌿 Smooth blend", callback: "cat:poppers_smooth" },
+    { text: "💎 Premium",      callback: "cat:poppers_premium" },
   ],
   poppers_fast: [
     { label: "Rush Ultra Strong (Yellow) — ₱700", callback: "amt:Rush Ultra Strong (Yellow)" },
@@ -80,17 +75,14 @@ const PRICE_LIST = {
 };
 
 // ───────── STATE ─────────
-let SHOP_OPEN = true;
+let SHOP_OPEN = true; // persisted in memory; dashboard & /admin toggle both touch this
 const sessions = new Map();        // chatId -> { cart, step, ... }
 const adminMessageMap = new Map(); // adminMsgId -> { customerChatId }
-
-// In-memory admin state for chat-based actions
-const adminState = { mode: null, deliveryOrderId: null }; // 'broadcast' | 'await_delivery_link'
+const adminState = { mode: null, deliveryOrderId: null }; // broadcast/await_delivery_link
 
 // ───────── EXPRESS ─────────
 const app = express();
 app.use(express.json());
-// Static: product QR, receipt, and the admin webapp
 app.use("/static", express.static("public"));
 app.use("/admin-app", express.static(path.join(__dirname, "public", "admin-app")));
 
@@ -138,7 +130,7 @@ function getSession(chatId) {
 }
 function ensureCart(s) { if (!s.cart) s.cart = []; }
 function itemsToText(items) {
-  return items.map((i, idx) => `${idx + 1}. ${i.category} — ${i.amount}`).join("\n");
+  return (items || []).map((i, idx) => `${idx + 1}. ${i.category} — ${i.amount}`).join("\n");
 }
 async function reverseGeocode(lat, lon) {
   try {
@@ -151,7 +143,7 @@ async function reverseGeocode(lat, lon) {
   } catch { return `${lat}, ${lon}`; }
 }
 
-// ───────── CONTACT ADMIN FLOW ─────────
+// ───────── CUSTOMER ↔ ADMIN CHAT SHORTCUT ─────────
 async function startContactAdmin(chatId) {
   const s = getSession(chatId);
   s.step = "contact_admin";
@@ -166,25 +158,8 @@ async function startContactAdmin(chatId) {
     }
   );
 }
-async function forwardCustomerMessageToAdmins(chatId, text) {
-  const s = getSession(chatId);
-  const header =
-    `✉️ *Customer message*\n` +
-    `• Chat ID: ${chatId}\n` +
-    (s.name ? `• Name: ${s.name}\n` : "") +
-    (s.phone ? `• Phone: ${s.phone}\n` : "") +
-    (s.address ? `• Address: ${s.address}\n` : "") +
-    `\n${text}`;
 
-  for (const adminId of ADMIN_IDS) {
-    const r = await tgSendMessage(adminId, header, { parse_mode: "Markdown" });
-    const j = await r.json().catch(() => null);
-    if (j?.ok) adminMessageMap.set(j.result.message_id, { customerChatId: chatId });
-  }
-  await tgSendMessage(chatId, "✅ Sent to admin. We’ll reply here as soon as possible.");
-}
-
-// ───────── QR (Payment + Contact Admin) ─────────
+// ───────── QR (Payment) ─────────
 async function sendPaymentQR(chatId) {
   try {
     const url = `${HOST_URL?.replace(/\/+$/, "")}/static/qrph.jpg`;
@@ -233,7 +208,7 @@ function buildCategoryKeyboard() {
 }
 function buildAmountKeyboard(s) {
   const inline_keyboard = [];
-  const listKey = s.category; // sachet | syringe | poppers_* ...
+  const listKey = s.category;
   const list = PRICE_LIST[listKey] || [];
   for (let i = 0; i < list.length; i += 2) {
     inline_keyboard.push(list.slice(i, i + 2).map(p => ({
@@ -258,7 +233,6 @@ function adminPanelKeyboard() {
       [{ text: "📢 Broadcast", callback_data: "admin:broadcast" }],
     ],
   };
-  // Mini-app dashboard entry (WebApp)
   if (HOST_URL) {
     kb.inline_keyboard.push([{ text: "🖥️ Open Dashboard", web_app: { url: `${HOST_URL}/admin-app` } }]);
   }
@@ -271,7 +245,7 @@ async function openAdminCenter(forAdminId) {
   });
 }
 function orderSummaryText(o) {
-  const lines = [
+  return [
     `🧾 Order #${o.id}`,
     "",
     `👤 ${o.name || "N/A"}`,
@@ -284,8 +258,7 @@ function orderSummaryText(o) {
     `💰 Payment proof: ${o.paymentProof ? "✅" : "❌"}`,
     `📦 Status: ${o.status}`,
     "",
-  ];
-  return lines.join("\n");
+  ].join("\n");
 }
 async function listOrders(chatId) {
   const latest = await listRecentOrders(10);
@@ -319,9 +292,8 @@ async function notifyAdminsNewOrder(order, from) {
   }
 }
 
-// ───────── TELEGRAM WEBAPP AUTH (for Admin Mini-App) ─────────
+// ───────── TELEGRAM WEBAPP AUTH (dashboard) ─────────
 function getWebAppSecretKey(botToken) {
-  // secret = HMAC-SHA256("WebAppData", botToken)
   return crypto.createHmac("sha256", "WebAppData").update(botToken).digest();
 }
 function checkWebAppInitData(initDataRaw) {
@@ -355,7 +327,7 @@ function requireAdminWebApp(req, res, next) {
   next();
 }
 
-// ───────── ADMIN MINI-APP API (used by /admin-app) ─────────
+// ───────── ADMIN MINI-APP API ─────────
 app.get("/api/admin/orders", requireAdminWebApp, async (req, res) => {
   try {
     const latest = await listRecentOrders(100);
@@ -379,7 +351,7 @@ app.get("/api/admin/orders", requireAdminWebApp, async (req, res) => {
   }
 });
 
-// Update stage: 0=Preparing,1=Out for delivery,2=Delivered,-1=Canceled
+// Toggle stage
 app.post("/api/admin/orders/:id/stage", requireAdminWebApp, async (req, res) => {
   const id = Number(req.params.id);
   const { stage } = req.body || {};
@@ -388,7 +360,6 @@ app.post("/api/admin/orders/:id/stage", requireAdminWebApp, async (req, res) => 
   }
   try {
     await updateOrderStage(id, Number(stage));
-    // Notify customer about status change
     const o = await getOrderById(id);
     if (o?.customerChatId) {
       const stageText = (s => s === 1 ? "Out for delivery" : s === 2 ? "Delivered" : s === -1 ? "Canceled" : "Preparing")(Number(stage));
@@ -401,7 +372,7 @@ app.post("/api/admin/orders/:id/stage", requireAdminWebApp, async (req, res) => 
   }
 });
 
-// Send delivery/tracking link to customer
+// Send delivery link (FIXED: removed stray backticks)
 app.post("/api/admin/orders/:id/sendlink", requireAdminWebApp, async (req, res) => {
   const id = Number(req.params.id);
   const { link } = req.body || {};
@@ -424,8 +395,15 @@ app.post("/api/admin/orders/:id/sendlink", requireAdminWebApp, async (req, res) 
   }
 });
 
-// ───────── CHAT API (Admin dashboard) ─────────
-// Get messages for an order
+// Shop state endpoint for dashboard toggle
+app.post("/api/admin/shop", requireAdminWebApp, async (req, res) => {
+  const { open } = req.body || {};
+  if (typeof open !== "boolean") return res.status(400).json({ ok: false, error: "bad_value" });
+  SHOP_OPEN = open;
+  res.json({ ok: true, shop_open: SHOP_OPEN });
+});
+
+// Chat API
 app.get("/api/admin/orders/:id/messages", requireAdminWebApp, async (req, res) => {
   const id = Number(req.params.id);
   try {
@@ -436,8 +414,6 @@ app.get("/api/admin/orders/:id/messages", requireAdminWebApp, async (req, res) =
     res.status(500).json({ ok: false, error: "db_error" });
   }
 });
-
-// Post a message from admin to customer
 app.post("/api/admin/orders/:id/messages", requireAdminWebApp, async (req, res) => {
   const id = Number(req.params.id);
   const { message } = req.body || {};
@@ -464,7 +440,7 @@ async function handleCallbackQuery(cbq) {
   const data   = cbq.data;
   const s      = getSession(chatId);
 
-  // TERMS
+  // Terms
   if (data === "terms:agree") {
     s.step = "ordering";
     await tgEditMessageText(chatId, msgId, "✅ Thank you for agreeing. Let's begin!", {
@@ -482,7 +458,7 @@ async function handleCallbackQuery(cbq) {
     return;
   }
 
-  // CONTACT ADMIN
+  // Contact Admin
   if (data === "contact:admin")  return startContactAdmin(chatId);
   if (data === "contact:cancel") {
     s.step = "ordering";
@@ -492,7 +468,7 @@ async function handleCallbackQuery(cbq) {
     return;
   }
 
-  // ADMIN CALLBACKS (chat-based admin center)
+  // Admin center callbacks
   if (data.startsWith("admin:")) {
     if (!isAdmin(chatId)) { await tgSendMessage(chatId, "⛔ Unauthorized."); return; }
     const [, action, arg] = data.split(":");
@@ -553,7 +529,7 @@ async function handleCallbackQuery(cbq) {
     return;
   }
 
-  // CUSTOMER CALLBACKS (guard if closed)
+  // Guard if closed
   if (!SHOP_OPEN) { await tgSendMessage(chatId, "🏪 The shop is closed."); return; }
 
   if (data === "cat:menu") {
@@ -566,7 +542,7 @@ async function handleCallbackQuery(cbq) {
   }
 
   if (data.startsWith("cat:")) {
-    s.category = data.slice(4); // sachet | syringe | poppers | poppers_fast | ...
+    s.category = data.slice(4);
     const text = s.category === "poppers"
       ? "🧪 Poppers — choose a style 👇"
       : `🧊 ${s.category} selected`;
@@ -582,9 +558,7 @@ async function handleCallbackQuery(cbq) {
                   { text: "⚡ Fast-acting",  callback_data: "cat:poppers_fast" },
                   { text: "🌿 Smooth blend", callback_data: "cat:poppers_smooth" },
                 ],
-                [
-                  { text: "💎 Premium",      callback_data: "cat:poppers_premium" },
-                ],
+                [{ text: "💎 Premium", callback_data: "cat:poppers_premium" }],
                 [
                   { text: "📂 Categories",   callback_data: "cat:menu" },
                   { text: "🧑‍💼 Contact Admin", callback_data: "contact:admin" },
@@ -598,7 +572,7 @@ async function handleCallbackQuery(cbq) {
   }
 
   if (data.startsWith("amt:")) {
-    const amount = data.slice(4);         // peso/units string OR poppers brand
+    const amount = data.slice(4);
     ensureCart(s);
     const itemLabel = (s.category?.startsWith("poppers")) ? `₱700 • ${amount}` : amount;
     s.cart.push({ category: s.category, amount: itemLabel });
@@ -647,7 +621,26 @@ async function handleMessage(msg) {
   const text   = (msg.text || "").trim();
   const s      = getSession(chatId);
 
-  // Admin reply bridge (replying to a forwarded customer message)
+  // /start (added)
+  if (text === "/start" || text === "/restart") {
+    sessions.set(chatId, { cart: [], status: "idle", step: "terms" });
+    await tgSendMessage(
+      chatId,
+      "Welcome to *Yelo🟡Spot*! You must be 18+ and agree to our Terms & Conditions to continue.",
+      {
+        parse_mode: "Markdown",
+        reply_markup: {
+          inline_keyboard: [
+            [{ text: "✅ I agree (18+)", callback_data: "terms:agree" }],
+            [{ text: "❌ I don't agree", callback_data: "terms:decline" }],
+          ],
+        },
+      }
+    );
+    return;
+  }
+
+  // Admin reply bridge
   if (isAdmin(chatId) && msg.reply_to_message) {
     const info = adminMessageMap.get(msg.reply_to_message.message_id);
     if (!info) return tgSendMessage(chatId, "⚠️ Cannot map reply to a customer.");
@@ -662,7 +655,7 @@ async function handleMessage(msg) {
     return;
   }
 
-  // Admin typed delivery link after "Send Delivery Link"
+  // Admin typed delivery link
   if (isAdmin(chatId) && adminState.mode === "await_delivery_link") {
     const id = adminState.deliveryOrderId;
     const o = await getOrderById(id);
@@ -684,7 +677,7 @@ async function handleMessage(msg) {
     adminState.mode = null;
     let count = 0;
     for (const [cid] of sessions) {
-      if (isAdmin(cid)) continue; // skip admin chats
+      if (isAdmin(cid)) continue;
       try { await tgSendMessage(cid, `📢 *Admin Broadcast:*\n${text}`, { parse_mode: "Markdown" }); count++; }
       catch {}
     }
@@ -699,7 +692,7 @@ async function handleMessage(msg) {
   if (text === "/orders")     { if (!isAdmin(fromId)) return; await listOrders(chatId); return; }
   if (text === "/broadcast")  { if (!isAdmin(fromId)) return; adminState.mode = "broadcast"; return tgSendMessage(chatId, "📢 Send the message to broadcast to all recent chats."); }
 
-  // Public commands (menu support)
+  // Public commands
   if (text === "/menu") {
     if (!SHOP_OPEN) return tgSendMessage(chatId, "🏪 The shop is closed.");
     return tgSendMessage(chatId, "🧊 Choose a product type 👇", { reply_markup: buildCategoryKeyboard() });
@@ -734,13 +727,25 @@ async function handleMessage(msg) {
     }
   }
 
-  // 🔵 Customer free-text → chat message on latest active order
+  // Name → Phone → Location flow
+  if (s.step === "ask_name" && text) {
+    s.name = text;
+    s.step = "request_phone";
+    await tgSendMessage(chatId, "📱 Please share your phone number:", {
+      reply_markup: {
+        keyboard: [[{ text: "📱 Share phone", request_contact: true }]],
+        resize_keyboard: true, one_time_keyboard: true,
+      },
+    });
+    return;
+  }
+
+  // Free-text from customer = message on latest active order
   if (!isAdmin(chatId) && text && !text.startsWith("/")) {
     try {
       const o = await latestActiveOrderByChatId(chatId);
       if (o) {
         await createMessage(o.id, "customer", text);
-        // Ping admins
         for (const adminId of ADMIN_IDS) {
           await tgSendMessage(
             adminId,
@@ -755,11 +760,10 @@ async function handleMessage(msg) {
     }
   }
 
-  // Fallback
   await tgSendMessage(chatId, "Please use /start to begin ordering.");
 }
 
-// ───────── CONTACT (phone) ─────────
+// Contact
 async function handleContact(msg) {
   const chatId = msg.chat.id;
   if (!SHOP_OPEN) return tgSendMessage(chatId, "🏪 The shop is closed.");
@@ -775,7 +779,7 @@ async function handleContact(msg) {
   });
 }
 
-// ───────── LOCATION (address & summary) ─────────
+// Location → summary + QR
 async function handleLocation(msg) {
   const chatId = msg.chat.id;
   if (!SHOP_OPEN) return tgSendMessage(chatId, "🏪 The shop is closed.");
@@ -809,7 +813,7 @@ Scan the QR (QRPh / GCash) below, then tap *Payment Processed* and upload your p
   await sendPaymentQR(chatId);
 }
 
-// ───────── PAYMENT PROOF (photo/document) ─────────
+// Payment proof
 async function handlePhotoOrDocument(msg) {
   const chatId = msg.chat.id;
   if (!SHOP_OPEN) return tgSendMessage(chatId, "🏪 The shop is closed.");
@@ -818,7 +822,6 @@ async function handlePhotoOrDocument(msg) {
 
   s.paymentProof = msg.photo ? msg.photo.pop().file_id : msg.document?.file_id;
 
-  // ✅ Persist order in DB
   const newId = await createOrder({
     customerChatId: chatId,
     name: s.name,
@@ -829,7 +832,6 @@ async function handlePhotoOrDocument(msg) {
     paymentProof: s.paymentProof || null,
   });
 
-  // Notify admins using a composed object
   const order = {
     id: newId,
     customerChatId: chatId,
@@ -881,11 +883,9 @@ app.get("/health", async (_, r) => {
 app.listen(PORT, async () => {
   console.log(`🚀 Server running on port ${PORT}`);
 
-  // ✅ Init DB
   try { await dbInit(); console.log("✅ DB ready"); }
   catch (e) { console.error("❌ DB init failed:", e); }
 
-  // Set webhook
   if (HOST_URL) {
     const webhook = `${HOST_URL}${pathWebhook}`;
     try {
@@ -902,7 +902,7 @@ app.listen(PORT, async () => {
     console.warn("⚠️ HOST_URL not set — please set webhook manually.");
   }
 
-  // ---- PUBLIC MENU COMMANDS ----
+  // Public menu commands
   try {
     await fetchFn(`${TELEGRAM_API}/setMyCommands`, {
       method: "POST",
@@ -927,7 +927,7 @@ app.listen(PORT, async () => {
     console.error("❌ Failed to set public menu commands:", e);
   }
 
-  // ---- ADMIN-ONLY MENU FOR EACH ADMIN CHAT ----
+  // Admin-only menus
   for (const adminId of ADMIN_IDS) {
     try {
       await fetchFn(`${TELEGRAM_API}/setMyCommands`, {

@@ -1,308 +1,389 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1" />
-  <title>Yelo🟡Spot — Admin</title>
-  <style>
-    :root{
-      --bg:#0d141b; --card:#121b24; --outline:#1a2430; --text:#e7f0f7; --muted:#8aa0b3;
-      --accent:#ffd84d; --shadow:0 8px 24px rgba(0,0,0,.35);
-    }
-    *{box-sizing:border-box} html,body{height:100%}
-    body{margin:0;background:var(--bg);color:var(--text);font:500 14px/1.35 system-ui,Inter,Roboto,Segoe UI,Arial}
-    .wrap{max-width:960px;margin:0 auto;padding:12px 12px 80px}
-    .topbar{display:flex;gap:10px;align-items:center;margin:4px 2px 10px}
-    .brand{font-size:24px;font-weight:800;display:flex;gap:8px;align-items:center}
-    .dot{width:10px;height:10px;border-radius:50%;background:#f8c300;box-shadow:0 0 0 4px rgba(248,195,0,.12)}
-    .chip{background:#0f1720;color:#b7c5d3;border:1px solid var(--outline);padding:6px 10px;border-radius:999px}
-    .btn{border:1px solid var(--outline);background:#17212b;color:#cfe0ee;border-radius:10px;padding:8px 12px;font-weight:700;cursor:pointer}
-    .btn.yellow{background:#2a2f18;color:#ffea8a;border-color:#3a3c23}
-    .btn.red{background:#2a1417;border-color:#402328;color:#ffc6c6}
-    .btn.green{background:#14271d;border-color:#1f3f2c;color:#bff3d5}
-    .btn[disabled]{opacity:.45;cursor:not-allowed}
-    .switch{display:flex;align-items:center;gap:10px}
-    .switch input{appearance:none;width:36px;height:22px;border-radius:999px;background:#243142;border:1px solid var(--outline);position:relative}
-    .switch input:checked{background:#1b3d2c}
-    .switch input:before{content:"";position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;background:#aab8c5;transition:.18s}
-    .switch input:checked:before{left:16px;background:#34d399}
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<title>Yelo🟡Spot — Admin</title>
+<style>
+  :root{
+    --bg:#0a0f15; --panel:#0f1520; --soft:#101826; --line:#1f2a3a;
+    --text:#e8eef7; --muted:#9aa6b2; --brand:#ffd400;
+    --ok:#22c55e; --warn:#f59e0b; --danger:#ef4444; --accent:#273249;
+    --radius:16px; --shadow:0 10px 30px rgba(0,0,0,.35);
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0; background:linear-gradient(180deg,var(--bg),#0b1422 70%);
+    color:var(--text); font:14px/1.45 ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Arial;
+    -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;
+  }
+  .app{max-width:920px;margin:0 auto;padding:16px 14px 60px}
+  .topbar{display:flex;align-items:center;gap:12px}
+  .brand{display:flex;align-items:center;gap:10px;font-weight:800;font-size:22px}
+  .brand .dot{width:18px;height:18px;border-radius:50%;background:var(--brand)}
+  .spacer{flex:1}
+  .switch{
+    display:inline-flex;align-items:center;background:#0e1726;border:1px solid var(--line);
+    padding:4px 8px;border-radius:999px;gap:10px
+  }
+  .switch input{appearance:none;width:44px;height:24px;background:#1c2535;border-radius:999px;position:relative;outline:none;border:1px solid #2a364c;cursor:pointer}
+  .switch input:checked{background:#163221;border-color:#1f6f41}
+  .switch input:before{content:"";position:absolute;top:2px;left:2px;width:18px;height:18px;background:#cfd7e6;border-radius:50%;transition:transform .18s}
+  .switch input:checked:before{transform:translateX(20px);background:#7fffb4}
+  .btn{background:#1a2333;border:1px solid #2a364c;color:#dbe2ea;border-radius:12px;padding:10px 14px;cursor:pointer}
+  .btn.small{padding:8px 12px;border-radius:10px}
+  .btn.yellow{background:#2b210b;border-color:#5a4413;color:#ffd97a}
 
-    .stats{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:8px 0 12px}
-    .stat{background:var(--card);border:1px solid var(--outline);border-radius:14px;padding:10px 12px;min-height:74px;box-shadow:var(--shadow);display:flex;flex-direction:column;justify-content:center}
-    .stat .title{color:var(--muted);font-weight:700;margin-bottom:4px}
-    .stat .value{font-size:32px;font-weight:900}
+  .summary{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:14px 0 6px}
+  /* ↓ Slimmer tiles */
+  .tile{
+    background:linear-gradient(180deg,#0f1520,#0b121d);
+    border:1px solid var(--line);
+    border-radius:14px;
+    padding:10px 12px;     /* was 14px 16px */
+    min-height:68px;       /* compact height */
+    box-shadow:var(--shadow);
+  }
+  .tile h4{margin:0 0 6px 0;color:#b8c6d8} /* was 8px */
 
-    h2{margin:12px 2px}
-    .orders{display:flex;flex-direction:column;gap:12px}
-    .card{background:var(--card);border:1px solid var(--outline);border-radius:14px;padding:12px;box-shadow:var(--shadow)}
-    .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-    .pill{background:#0e1620;border:1px solid var(--outline);color:#90a9bf;padding:6px 10px;border-radius:999px;font-weight:700}
-    .pill.ok{background:#0b1d17;border-color:#163626;color:#a9f3cc}
-    .pill.bad{background:#2a1313;border-color:#3a2020;color:#ffe1e1}
-    .title-row{display:flex;justify-content:space-between;align-items:center;margin:8px 0 6px}
-    .order-title{font-size:18px;font-weight:900}
-    .addr{color:#b8c7d6;margin:6px 0 8px}
-    .items{color:#cdd9e4}
-    .actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+  .big{font-size:26px;font-weight:800}
+  .muted{color:var(--muted)}
+  .section-title{font-weight:800;font-size:18px;margin:18px 0 10px}
+  .card{
+    background:linear-gradient(180deg,var(--panel),var(--soft)); border:1px solid var(--line);
+    border-radius:var(--radius); box-shadow:var(--shadow); padding:14px;
+    margin:12px 0;
+  }
+  .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .idpill{background:#0d1626;border:1px solid var(--line);padding:5px 10px;border-radius:999px;color:#a7b5c7;font-weight:700}
+  .badge{background:#0d1626;border:1px solid var(--line);padding:5px 10px;border-radius:999px;font-weight:700;color:#cbd5e1}
+  .badge.confirmed{border-color:#3a455c}
+  .badge.out{border-color:#3aa3ff;color:#cfeaff;background:#0d1723}
+  .badge.done{border-color:#22c55e;color:#b8f6c2;background:#0f1b12}
+  .badge.cancel{border-color:#ef4444;color:#fecaca;background:#220e12}
+  .when{background:#0d1626;border:1px solid var(--line);color:#a7b5c7;border-radius:999px;padding:5px 10px}
+  .title{font-weight:900;font-size:18px;margin:10px 0 6px 0}
+  .list{padding-left:18px;margin:6px 0;color:#dbe3ee}
+  .list li{margin:2px 0}
+  .card-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+  .btn.red{background:#2b1417;border-color:#5a1e25;color:#ffc9c9}
+  .divider{height:1px;background:var(--line);margin:12px 0}
 
-    .chat{margin-top:14px;background:var(--card);border:1px solid var(--outline);border-radius:14px;box-shadow:var(--shadow);padding:10px}
-    .thread{border:1px solid var(--outline);background:#0e141b;border-radius:12px;padding:8px;height:240px;overflow:auto}
-    .bubble{max-width:85%;padding:10px 12px;border-radius:12px;margin:6px 0}
-    .bubble.admin{background:#0e2240;color:#d6e6ff;margin-left:auto}
-    .bubble.customer{background:#1b2a1f;color:#d3f2dd;margin-right:auto}
-    .meta{font-size:11px;opacity:.75;display:block;margin-bottom:4px}
-    .composer{display:flex;gap:8px;margin-top:8px}
-    .composer input{flex:1;background:#0e1620;border:1px solid var(--outline);color:var(--text);border-radius:10px;padding:10px 12px}
+  /* chat in card */
+  .chat{
+    background:#0b111b;border:1px solid var(--line);border-radius:12px;padding:10px;margin-top:10px
+  }
+  .msg-list{display:flex;flex-direction:column;gap:10px;min-height:80px;max-height:200px;overflow:auto;padding-right:6px}
+  .msg{display:flex}
+  /* ↓ Shorter bubbles (height via padding + tighter meta) */
+  .msg .bub{
+    max-width:85%;
+    padding:6px 10px;            /* was 10px 12px */
+    border-radius:12px;
+    border:1px solid var(--line);
+    white-space:pre-wrap;
+    line-height:1.35;            /* slightly tighter */
+  }
+  .msg.customer{justify-content:flex-start}
+  .msg.customer .bub{background:#141c28}
+  .msg.admin{justify-content:flex-end}
+  .msg.admin .bub{background:#10213a}
+  .msgmeta{font-size:10px; color:#9aa6b2; margin-bottom:2px} /* was 11px / 4px */
+  .chat-entry{display:flex;gap:8px;margin-top:8px}
+  .chat-entry textarea{flex:1;min-height:42px;resize:vertical;background:#0e1523;border:1px solid #1f2937;border-radius:10px;color:var(--text);padding:10px}
+  .empty{color:var(--muted)}
 
-    @media (max-width:720px){.wrap{padding:10px 10px 60px}.stat .value{font-size:28px}}
-  </style>
+  /* unauthorized banner */
+  .unauth{background:#1b1210;border:1px solid #3e2a24;color:#ffd6b5;padding:12px;border-radius:12px;margin:10px 0}
+</style>
 </head>
 <body>
-  <div class="wrap">
+  <div class="app">
+    <!-- header -->
     <div class="topbar">
-      <div class="brand">Yelo <span class="dot"></span> Spot</div>
-      <span class="chip">Admin dashboard</span>
-      <div style="flex:1"></div>
-      <div class="switch"><span>Shop</span><input id="shopToggle" type="checkbox" /></div>
-      <button id="refreshBtn" class="btn yellow">↻ Refresh</button>
+      <div class="brand">Yelo<span class="dot"></span>Spot</div>
+      <div class="spacer"></div>
+      <label class="switch">
+        <span class="muted">Shop</span>
+        <input id="shopToggle" type="checkbox" />
+      </label>
+      <button id="btnRefresh" class="btn yellow">⟳ Refresh</button>
     </div>
 
-    <section class="stats">
-      <div class="stat">
-        <div class="title">Orders</div>
-        <div class="row" style="justify-content:space-between">
-          <div class="value" id="ordersCount">0</div>
-          <select id="timeFilter" class="chip">
-            <option value="all" selected>All</option>
+    <!-- summary -->
+    <div class="summary">
+      <div class="tile">
+        <h4>Orders</h4>
+        <div class="row">
+          <div id="ordersCount" class="big">0</div>
+          <select id="ordersRange" class="btn small" style="margin-left:auto">
+            <option value="all">All</option>
             <option value="today">Today</option>
           </select>
         </div>
       </div>
-      <div class="stat">
-        <div class="title">Sales</div>
-        <div class="row" style="justify-content:space-between">
-          <div class="value">₱<span id="salesTotal">0</span></div>
-          <select id="salesFilter" class="chip">
-            <option value="today" selected>Today</option>
+      <div class="tile">
+        <h4>Sales</h4>
+        <div class="row">
+          <div class="big">₱<span id="salesTotal">0</span></div>
+          <select id="salesRange" class="btn small" style="margin-left:auto">
+            <option value="today">Today</option>
             <option value="all">All time</option>
           </select>
         </div>
       </div>
-    </section>
-
-    <h2>All orders</h2>
-    <div id="orders" class="orders"></div>
-
-    <div id="chat" class="chat" style="display:none">
-      <div class="chip" id="chatOrderChip" style="margin-bottom:8px"></div>
-      <div id="thread" class="thread"></div>
-      <div class="composer">
-        <input id="composerInput" type="text" placeholder="Type a message to customer…">
-        <button id="sendBtn" class="btn">Send</button>
-      </div>
-      <div style="color:#9fb2c5;margin-top:6px">Messages from here appear to the customer as <b>“Admin”</b>.</div>
     </div>
+
+    <div id="unauth" class="unauth" style="display:none">
+      <b>Unauthorized:</b> Please open inside Telegram (Admin WebApp).
+    </div>
+
+    <div class="section-title">All orders</div>
+    <div id="cards"></div>
   </div>
 
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
   <script>
-    /* ---------------- API helper with Telegram header + errors ---------------- */
-    const getInitData = () => {
-      try { return (window.Telegram && Telegram.WebApp && Telegram.WebApp.initData) || ''; }
-      catch { return ''; }
-    };
-    async function tgFetch(url, opts = {}) {
-      const headers = Object.assign(
-        {'Content-Type':'application/json','X-Telegram-Init-Data': getInitData()},
-        opts.headers || {}
-      );
-      const res = await fetch(url, Object.assign(opts,{headers}));
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      let data;
-      try { data = await res.json(); } catch { throw new Error('Bad JSON'); }
-      if (data && data.ok === false && data.error === 'unauthorized') {
-        alert('Unauthorized: please open inside Telegram (Admin WebApp).');
-        throw new Error('Unauthorized');
-      }
-      return data;
-    }
+    /* ---------------- Telegram WebApp auth ---------------- */
+    const tg = window.Telegram?.WebApp;
+    let initData = "";
+    let insideTG = false;
 
-    /* ---------------- State ---------------- */
-    let ORDERS = [];
-    let CURRENT_ORDER = null;
+    if (tg && tg.initData) {
+      insideTG = true;
+      initData = tg.initData;
+      tg.ready(); tg.expand && tg.expand();
+    } else {
+      const qp = new URLSearchParams(location.search);
+      initData = qp.get("initData") || "";
+      insideTG = !!initData;
+    }
+    document.getElementById("unauth").style.display = insideTG ? "none" : "block";
 
-    /* ---------------- Utils ---------------- */
-    const peso = n => Number(n || 0).toLocaleString('en-PH');
-    const fmtTime = iso => { const d = new Date(iso); return d.toLocaleString(undefined,{hour12:true}); };
-    const isToday = iso => (new Date(iso)).toDateString() === (new Date()).toDateString();
-    const sumOrderPesos = o => (o.items||[]).reduce((a,it)=>{
-      const m = String(it.amount||'').match(/₱\s*([\d,]+)/); return a + (m? +m[1].replace(/,/g,''):0);
-    },0);
-
-    /* ---------------- Shop toggle ---------------- */
-    async function loadShopState(){
-      try{
-        const j = await tgFetch('/api/admin/shop');
-        document.getElementById('shopToggle').checked = !!j.open;
-      }catch(e){ /* silent in browser */ }
-    }
-    async function setShopState(open){
-      try{ await tgFetch('/api/admin/shop',{method:'POST',body:JSON.stringify({open})}); }
-      catch(e){ alert('Failed to toggle shop'); }
-    }
-
-    /* ---------------- Orders ---------------- */
-    async function loadOrders(){
-      const j = await tgFetch('/api/admin/orders');
-      ORDERS = j.orders || [];
-      renderStats();
-      renderOrders();
-    }
-    function filtered(list){
-      return document.getElementById('timeFilter').value === 'today'
-        ? list.filter(o=>isToday(o.createdAt)) : list;
-    }
-    function renderStats(){
-      const list = filtered(ORDERS);
-      document.getElementById('ordersCount').textContent = list.length;
-      const source = document.getElementById('salesFilter').value === 'today'
-        ? ORDERS.filter(o=>isToday(o.createdAt)) : ORDERS;
-      const total = source.filter(o => (o.statusStage ?? 0) !== -1)
-                          .reduce((a,o)=>a+sumOrderPesos(o),0);
-      document.getElementById('salesTotal').textContent = peso(total);
-    }
-
-    function stagePill(o){
-      const st = o.status || '';
-      const canceled = (o.statusStage ?? 0) === -1 || st === 'canceled';
-      if (canceled) return '<span class="pill bad">canceled</span>';
-      if (st === 'completed') return '<span class="pill ok">delivered</span>';
-      if (st === 'out_for_delivery') return '<span class="pill ok" style="opacity:.85">on the way</span>';
-      return '<span class="pill">confirmed</span>';
-    }
-    function itemsLine(items){
-      if (!items || !items.length) return '';
-      return items.map(i=>`• <b>${i.category}</b> — ${i.amount}`).join('<br>');
-    }
-
-    function renderOrders(){
-      const box = document.getElementById('orders');
-      box.innerHTML = '';
-      filtered(ORDERS).forEach(o=>{
-        const disabled = (o.statusStage ?? 0) < 0 || o.status === 'completed';
-        const card = document.createElement('div');
-        card.className = 'card';
-        card.dataset.orderId = o.id; // for event delegation
-        card.innerHTML = `
-          <div class="row">
-            <span class="pill">#${o.id}</span>
-            ${stagePill(o)}
-            <span class="pill">${fmtTime(o.createdAt)}</span>
-          </div>
-          <div class="title-row">
-            <div class="order-title">${o.name || 'Customer'} • ${o.phone || o.customerChatId || ''}</div>
-          </div>
-          <div class="addr">${o.address || ''}</div>
-          <div class="items">${itemsLine(o.items || [])}</div>
-          <div class="actions">
-            <button class="btn" data-act="sendlink" ${disabled?'disabled':''}>Send link</button>
-            <button class="btn" data-act="done" ${disabled?'disabled':''}>Order confirmed</button>
-            <button class="btn red" data-act="cancel" ${disabled?'disabled':''}>Cancel</button>
-            <button class="btn yellow" style="margin-left:auto" data-act="chat">Chat</button>
-          </div>
-        `;
-        box.appendChild(card);
+    /* ---------------- small helpers ---------------- */
+    const $ = (s)=>document.querySelector(s);
+    const cards = $("#cards");
+    const shopToggle = $("#shopToggle");
+    const btnRefresh = $("#btnRefresh");
+    const peso = (n)=> new Intl.NumberFormat("en-PH").format(n||0);
+    const fmt = (iso)=> { try{ return new Date(iso).toLocaleString(); }catch{ return iso||"-"; } };
+    const api = async (path, method="GET", body) => {
+      const res = await fetch(path, {
+        method,
+        headers:{
+          "Content-Type":"application/json",
+          "X-Telegram-Init-Data": initData
+        },
+        body: body? JSON.stringify(body): undefined
       });
+      const j = await res.json().catch(()=>({}));
+      if (!j?.ok) throw new Error(j?.error || "api_error");
+      return j;
+    };
+    const esc = (s)=> (s||"").replace(/[&<>"']/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m]));
+
+    /* ---------------- state ---------------- */
+    let ORDERS = [];
+    const POLL = new Map(); // orderId -> intervalId
+
+    /* ---------------- render ---------------- */
+    function badgeFor(stage){
+      if (stage === 2) return '<span class="badge done">delivered</span>';
+      if (stage === 1) return '<span class="badge out">out for delivery</span>';
+      if (stage === -1) return '<span class="badge cancel">canceled</span>';
+      return '<span class="badge confirmed">confirmed</span>';
+    }
+    function itemsList(items){
+      if (!items?.length) return "";
+      return `<ul class="list">${items.map(i=>`<li>${esc(i.category)} — ${esc(i.amount)}`).join("")}</ul>`;
     }
 
-    /* ---- EVENT DELEGATION so buttons ALWAYS work ---- */
-    document.getElementById('orders').addEventListener('click', async (e)=>{
-      const btn = e.target.closest('button[data-act]');
-      if (!btn) return;
-      const card = btn.closest('.card');
-      if (!card) return;
-      const orderId = Number(card.dataset.orderId);
-      const order = ORDERS.find(o => o.id === orderId);
-      if (!order) return;
+    function cardHtml(o){
+      return `
+      <div class="card" data-id="${o.id}">
+        <div class="row" style="justify-content:space-between">
+          <div class="row">
+            <div class="idpill">#${o.id}</div>
+            ${badgeFor(Number(o.statusStage ?? 0))}
+            <div class="when">${fmt(o.createdAt)}</div>
+          </div>
+        </div>
 
-      const act = btn.dataset.act;
+        <div class="title">${esc(o.name || "—")} • ${esc(o.phone || o.customerChatId || "")}</div>
+        <div class="muted" style="margin-bottom:6px">${esc(o.address || "")}</div>
+
+        ${itemsList(o.items)}
+
+        ${Number(o.statusStage)===2 ? `
+          <div class="row" style="align-items:flex-start; gap:12px; margin-top:10px">
+            <div style="width:36px;height:36px;border-radius:50%;border:2px solid #1e9b57;display:flex;align-items:center;justify-content:center;color:#86f7b9">✓</div>
+            <div>
+              <div style="font-weight:800">Delivered</div>
+              <div class="muted">This order is complete. Actions are disabled.</div>
+            </div>
+          </div>` : ""}
+
+        <div class="card-actions">
+          ${Number(o.statusStage)===2 ? "" : `
+            <button class="btn small" data-act="sendlink">Send link</button>
+            <button class="btn small" data-act="stage1">Order confirmed</button>
+            <button class="btn small red" data-act="cancel">Cancel</button>
+          `}
+          <button class="btn small" data-act="toggle-chat">Chat</button>
+        </div>
+
+        <div class="chat" id="chat-${o.id}" style="display:none">
+          <div class="msg-list" id="msgs-${o.id}"><div class="empty">No messages yet.</div></div>
+          <div class="chat-entry">
+            <textarea id="input-${o.id}" placeholder="Type a message to customer…"></textarea>
+            <button class="btn" data-act="sendmsg">Send</button>
+          </div>
+        </div>
+      </div>`;
+    }
+
+    function render(){
+      cards.innerHTML = ORDERS.map(cardHtml).join("") || `<div class="muted">No orders yet.</div>`;
+      // sales + counts
+      $("#ordersCount").textContent = String(ORDERS.length);
+      const total = ORDERS.reduce((sum,o)=>{
+        const items = o.items || [];
+        let t = 0;
+        items.forEach(it=>{
+          const m = /₱\s*([\d,]+)/.exec(String(it.amount));
+          if (m) t += Number(m[1].replace(/,/g,"")) || 0;
+          else if ((it.category||"").startsWith("poppers")) t += 700;
+        });
+        return sum + t;
+      },0);
+      $("#salesTotal").textContent = peso(total);
+    }
+
+    /* ---------------- load data ---------------- */
+    async function loadShop(){
       try{
-        if (act === 'chat') { openChat(order); return; }
-        if (act === 'sendlink') {
-          const link = prompt('Paste delivery/tracking link:');
-          if (!link) return;
-          await tgFetch(`/api/admin/orders/${order.id}/sendlink`, { method:'POST', body: JSON.stringify({ link }) });
-          await loadOrders();
-          if (CURRENT_ORDER?.id === order.id) openChat(order);
+        const j = await api("/api/admin/shop");
+        shopToggle.checked = !!j.open;
+      }catch{}
+    }
+    async function loadOrders(){
+      try{
+        const j = await api("/api/admin/orders");
+        ORDERS = j.orders || [];
+        render();
+      }catch(e){
+        console.error(e);
+      }
+    }
+
+    /* ---------------- chat ---------------- */
+    async function loadMessages(orderId){
+      const box = document.getElementById(`msgs-${orderId}`);
+      try{
+        const j = await api(`/api/admin/orders/${orderId}/messages`);
+        const msgs = j.messages || [];
+        if (!msgs.length){
+          box.innerHTML = '<div class="empty">No messages yet.</div>';
           return;
         }
-        if (act === 'done') {
-          await tgFetch(`/api/admin/orders/${order.id}/stage`, { method:'POST', body: JSON.stringify({ stage: 2 }) });
-          await loadOrders(); return;
-        }
-        if (act === 'cancel') {
-          if (!confirm('Cancel this order?')) return;
-          await tgFetch(`/api/admin/orders/${order.id}/stage`, { method:'POST', body: JSON.stringify({ stage: -1 }) });
-          await loadOrders(); return;
-        }
-      } catch(err){
-        console.error(err); alert('Action failed. Please try again inside Telegram.');
+        box.innerHTML = msgs.map(m=>{
+          const who = m.sender === 'admin' ? 'admin' : 'customer';
+          const when = fmt(m.created_at || m.createdAt);
+          return `<div class="msg ${who}">
+                    <div class="bub">
+                      <div class="msgmeta">${who === 'admin' ? 'Admin' : 'Customer'} • ${when}</div>
+                      ${esc(m.message || '')}
+                    </div>
+                  </div>`;
+        }).join("");
+        box.scrollTop = box.scrollHeight;
+      }catch(e){
+        box.innerHTML = '<div class="empty">Failed to load messages.</div>';
+      }
+    }
+
+    function startPolling(orderId){
+      stopPolling(orderId);
+      const id = setInterval(()=>loadMessages(orderId), 5000);
+      POLL.set(orderId, id);
+    }
+    function stopPolling(orderId){
+      const id = POLL.get(orderId);
+      if (id){ clearInterval(id); POLL.delete(orderId); }
+    }
+
+    /* ---------------- events ---------------- */
+    shopToggle.addEventListener("change", async ()=>{
+      try{
+        await api("/api/admin/shop","POST",{ open: shopToggle.checked });
+      }catch(e){
+        shopToggle.checked = !shopToggle.checked;
       }
     });
 
-    /* ---------------- Chat ---------------- */
-    async function loadMessages(orderId){
-      try{
-        const j = await tgFetch(`/api/admin/orders/${orderId}/messages`);
-        return j.ok ? (j.messages||[]) : [];
-      }catch(e){ return []; }
-    }
-    function escapeHtml(s){
-      return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
-    }
-    function renderThread(msgs){
-      const box = document.getElementById('thread');
-      box.innerHTML = '';
-      msgs.forEach(m=>{
-        const d = document.createElement('div');
-        d.className = 'bubble ' + (m.sender === 'admin' ? 'admin' : 'customer');
-        d.innerHTML = `<span class="meta">${m.sender[0].toUpperCase()+m.sender.slice(1)} • ${fmtTime(m.created_at || m.createdAt)}</span>${escapeHtml(m.message)}`;
-        box.appendChild(d);
-      });
-      box.scrollTop = box.scrollHeight;
-    }
-    async function openChat(order){
-      CURRENT_ORDER = order;
-      document.getElementById('chat').style.display = '';
-      document.getElementById('chatOrderChip').textContent = `#${order.id} — ${order.name || 'Customer'}`;
-      renderThread(await loadMessages(order.id));
-    }
-    async function sendMessage(){
-      if (!CURRENT_ORDER) return;
-      const input = document.getElementById('composerInput');
-      const text = input.value.trim(); if (!text) return;
-      input.value='';
-      try{
-        await tgFetch(`/api/admin/orders/${CURRENT_ORDER.id}/messages`, {
-          method:'POST', body: JSON.stringify({ message: text })
-        });
-        renderThread(await loadMessages(CURRENT_ORDER.id));
-      }catch(e){ alert('Failed to send message.'); }
-    }
+    btnRefresh.addEventListener("click", async ()=>{
+      await Promise.all([loadShop(), loadOrders()]);
+    });
 
-    /* ---------------- Wire up ---------------- */
-    document.getElementById('sendBtn').addEventListener('click', sendMessage);
-    document.getElementById('composerInput').addEventListener('keydown', e=>{ if (e.key==='Enter') sendMessage(); });
-    document.getElementById('refreshBtn').addEventListener('click', loadOrders);
-    document.getElementById('shopToggle').addEventListener('change', e=> setShopState(e.target.checked));
-    document.getElementById('timeFilter').addEventListener('change', ()=>{ renderStats(); renderOrders(); });
-    document.getElementById('salesFilter').addEventListener('change', renderStats);
+    // delegate clicks inside cards
+    cards.addEventListener("click", async (ev)=>{
+      const card = ev.target.closest(".card");
+      if (!card) return;
+      const id = Number(card.dataset.id);
+      const act = ev.target.dataset.act;
 
-    (async function boot(){
-      try{ if (window.Telegram && Telegram.WebApp) Telegram.WebApp.expand(); }catch{}
-      await loadShopState();
+      if (act === "toggle-chat"){
+        const wrap = document.getElementById(`chat-${id}`);
+        const show = wrap.style.display === "none";
+        wrap.style.display = show ? "block" : "none";
+        if (show){ await loadMessages(id); startPolling(id); } else { stopPolling(id); }
+        return;
+      }
+      if (act === "sendmsg"){
+        const ta = document.getElementById(`input-${id}`);
+        const text = ta.value.trim();
+        if (!text) return;
+        try{
+          await api(`/api/admin/orders/${id}/messages`, "POST", { message: text });
+          ta.value = "";
+          await loadMessages(id);
+        }catch(e){ alert("Failed to send message."); }
+        return;
+      }
+      if (act === "sendlink"){
+        const link = prompt("Enter delivery/tracking link:");
+        if (!link) return;
+        try{
+          await api(`/api/admin/orders/${id}/sendlink`, "POST", { link });
+          alert("Link sent.");
+          await loadOrders();
+        }catch(e){ alert("Failed to send link."); }
+        return;
+      }
+      if (act === "stage1"){
+        try{
+          await api(`/api/admin/orders/${id}/stage`, "POST", { stage: 1 });
+        await loadOrders();
+        }catch(e){ alert("Failed to update stage."); }
+        return;
+      }
+      if (act === "cancel"){
+        if (!confirm("Cancel this order?")) return;
+        try{
+          await api(`/api/admin/orders/${id}/stage`, "POST", { stage: -1 });
+          await loadOrders();
+        }catch(e){ alert("Cancel failed."); }
+        return;
+      }
+    });
+
+    /* ---------------- init ---------------- */
+    (async function init(){
+      await loadShop();
       await loadOrders();
     })();
   </script>
-  <script src="https://telegram.org/js/telegram-web-app.js"></script>
 </body>
 </html>
+```0

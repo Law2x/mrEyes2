@@ -26,7 +26,7 @@ small{color:var(--muted)}
 .controls{display:flex;align-items:center;gap:10px}
 .pill{height:clamp(26px,5vw,34px);display:flex;align-items:center;gap:8px;padding:0 clamp(10px,2.5vw,12px);border-radius:999px}
 .switch{background:#1e2330;border:1px solid var(--border);font-weight:800}
-.toggle{width:clamp(36px,8vw,42px);height:clamp(18px,4vw,22px);border-radius:20px;background:#2a2f3a;position:relative;transition:.18s;flex:0 0 auto}
+.toggle{width:clamp(36px,8vw,42px);height:clamp(18px,4vw,22px);border-radius:20px;background:#2a2f3a;position:relative;transition:.18s;flex:0 0 auto;outline:none}
 .toggle:before{content:"";position:absolute;top:2px;left:2px;width:clamp(14px,3.5vw,18px);height:clamp(14px,3.5vw,18px);border-radius:50%;background:#fff;transition:.18s}
 .toggle.on{background:#1f5f3e}
 .toggle.on:before{transform:translateX(clamp(16px,3.7vw,20px));background:#34d399}
@@ -56,8 +56,6 @@ small{color:var(--muted)}
 .btn-ghost{background:#232938;color:var(--text)}
 .btn-danger{background:var(--danger);color:#fff}
 .minw0{min-width:0}
-
-/* Delivered / Canceled big status row */
 .doneRow{display:flex;align-items:center;gap:12px;margin-top:10px}
 .iconCircle{width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;
   box-shadow:0 8px 18px rgba(0,0,0,.35);font-size:24px;font-weight:900}
@@ -199,7 +197,6 @@ function renderAll(){
       <option value="canceled" ${k==='canceled'?'selected':''}>Canceled</option>
     `;
 
-    // ACTIONS OR DONE ROW
     let footerHtml = '';
     if(k==='delivered'){
       footerHtml = `
@@ -247,7 +244,6 @@ function renderAll(){
 
 /* ---------- ROW ACTIONS ---------- */
 function wireRowActions(){
-  // Send link
   document.querySelectorAll('.js-send').forEach(btn=>{
     btn.onclick = async (e)=>{
       const card = e.currentTarget.closest('.card'); const id = card.dataset.id;
@@ -265,7 +261,6 @@ function wireRowActions(){
     };
   });
 
-  // Stage dropdown
   document.querySelectorAll('.js-stage').forEach(sel=>{
     sel.onchange = async (e)=>{
       const card = e.currentTarget.closest('.card'); const id = card.dataset.id;
@@ -280,7 +275,6 @@ function wireRowActions(){
     };
   });
 
-  // Cancel
   document.querySelectorAll('.js-cancel').forEach(btn=>{
     btn.onclick = async (e)=>{
       const card = e.currentTarget.closest('.card'); const id = card.dataset.id;
@@ -297,30 +291,45 @@ function wireRowActions(){
   });
 }
 
-/* ---------- FETCH ---------- */
-async function fetchOrders(){
+/* ---------- SHOP TOGGLE (now persistent) ---------- */
+const shopToggle = document.getElementById('shopToggle');
+
+function setShopToggle(on){
+  shopToggle.classList.toggle('on', !!on);
+  shopToggle.setAttribute('aria-checked', on ? 'true':'false');
+}
+
+async function syncShopToggleFromServer(){
   try{
-    const j = await apiGet('/api/admin/orders');
-    if(!j.ok) throw new Error('not ok');
-    ORDERS = j.orders || [];
-    renderAll();
-  }catch(e){
-    console.error('Auth/DB error loading orders', e);
-    document.getElementById('ordersList').innerHTML =
-      '<div class="card">Auth/DB error loading orders</div>';
+    // /health does not need admin auth; keep simple
+    const r = await fetch('/health');
+    if(r.ok){
+      const j = await r.json();
+      if(typeof j.shop_open === 'boolean'){
+        setShopToggle(j.shop_open);
+        localStorage.setItem('ys_shop_open', j.shop_open ? '1':'0');
+        return;
+      }
+    }
+    // Fallback to localStorage
+    const ls = localStorage.getItem('ys_shop_open');
+    if(ls !== null) setShopToggle(ls==='1');
+  }catch{
+    const ls = localStorage.getItem('ys_shop_open');
+    if(ls !== null) setShopToggle(ls==='1');
   }
 }
 
-/* ---------- SHOP TOGGLE ---------- */
-const shopToggle = document.getElementById('shopToggle');
-function flip(){
-  shopToggle.classList.toggle('on');
-  const on = shopToggle.classList.contains('on');
-  shopToggle.setAttribute('aria-checked', on ? 'true':'false');
-  apiPost('/api/admin/shop', { open:on }).catch(()=>{});
+async function flipShop(){
+  const on = !shopToggle.classList.contains('on');
+  setShopToggle(on); // optimistic UI
+  localStorage.setItem('ys_shop_open', on ? '1':'0');
+  // Inform backend (ignore errors to avoid flipping user UI back)
+  try { await apiPost('/api/admin/shop', { open:on }); } catch(e){ console.warn('toggle sync failed', e); }
 }
-shopToggle.addEventListener('click', flip);
-shopToggle.addEventListener('keydown', e => { if(e.key==='Enter'||e.key===' ') { e.preventDefault(); flip(); } });
+
+shopToggle.addEventListener('click', flipShop);
+shopToggle.addEventListener('keydown', e => { if(e.key==='Enter'||e.key===' ') { e.preventDefault(); flipShop(); } });
 
 /* ---------- UI EVENTS ---------- */
 document.getElementById('ordersFilter').addEventListener('change', renderAll);
@@ -328,6 +337,7 @@ document.getElementById('salesRange').addEventListener('change', renderAll);
 document.getElementById('btnRefresh').addEventListener('click', fetchOrders);
 
 /* ---------- INIT ---------- */
+syncShopToggleFromServer();   // <-- get real state on load
 fetchOrders();
 </script>
 </body>

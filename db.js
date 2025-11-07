@@ -92,6 +92,7 @@ export async function dbInit() {
   const p = await buildPool();
   await p.query("BEGIN");
   try {
+    // --- Orders table (existing) ---
     await p.query(`
       create table if not exists orders (
         id serial primary key,
@@ -110,7 +111,24 @@ export async function dbInit() {
         updated_at timestamptz not null default now()
       );
     `);
+
     await p.query("create index if not exists idx_orders_created_at on orders(created_at desc);");
+
+    // ✅ ADD: threaded chat table (order_messages)
+    await p.query(`
+      create table if not exists order_messages (
+        id serial primary key,
+        order_id int not null references orders(id) on delete cascade,
+        sender text not null check (sender in ('customer','admin')),
+        message text not null,
+        created_at timestamptz not null default now()
+      );
+    `);
+    await p.query(`
+      create index if not exists idx_order_messages_order_time
+        on order_messages(order_id, created_at);
+    `);
+
     await p.query("COMMIT");
   } catch (err) {
     await p.query("ROLLBACK");
@@ -225,6 +243,43 @@ export async function markReceivedByChat(customerChatId) {
        and status_stage <> -1`,
     [customerChatId]
   );
+}
+
+// ✅ ADD: find latest order by chat id
+export async function latestActiveOrderByChatId(customerChatId) {
+  const p = await buildPool();
+  const r = await p.query(
+    `select * from orders
+     where customer_chat_id=$1
+     order by created_at desc
+     limit 1`,
+    [customerChatId]
+  );
+  return r.rows[0] || null;
+}
+
+// ✅ ADD: store a chat message
+export async function createMessage(orderId, sender, message) {
+  const p = await buildPool();
+  await p.query(
+    `insert into order_messages (order_id, sender, message)
+     values ($1,$2,$3)`,
+    [orderId, sender, message]
+  );
+}
+
+// ✅ ADD: list all messages for an order
+export async function listMessages(orderId, limit = 200) {
+  const p = await buildPool();
+  const r = await p.query(
+    `select id, order_id, sender, message, created_at
+     from order_messages
+     where order_id=$1
+     order by created_at asc
+     limit $2`,
+    [orderId, limit]
+  );
+  return r.rows;
 }
 
 // --- Graceful shutdown ---

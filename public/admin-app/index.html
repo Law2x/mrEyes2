@@ -63,6 +63,10 @@ small{color:var(--muted)}
 .icon--x{background:#2a1418;border:2px solid var(--danger);color:#ff8a95}
 .doneText{font-weight:900;letter-spacing:.3px}
 .doneSub{color:var(--muted);font-size:12px}
+
+.toast{position:fixed;left:50%;bottom:16px;transform:translateX(-50%);
+  background:#252b3a;border:1px solid var(--border);color:var(--text);padding:10px 14px;border-radius:10px;z-index:50;box-shadow:0 8px 18px rgba(0,0,0,.45);display:none}
+.toast.show{display:block}
 </style>
 </head>
 <body>
@@ -121,23 +125,54 @@ small{color:var(--muted)}
   <div id="ordersList"></div>
 </div>
 
+<div id="toast" class="toast"></div>
+
 <script>
 const tg = window.Telegram?.WebApp; tg?.ready?.(); tg?.expand?.();
-const authHeaders = ()=>({'X-Telegram-Init-Data': tg?.initData || '', 'Content-Type':'application/json'});
 
-let ORDERS = [];
+/* ---------- TOAST ---------- */
+function toast(msg){
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(el._t);
+  el._t = setTimeout(()=>el.classList.remove('show'), 3200);
+}
+
+/* ---------- AUTH HELPERS ---------- */
+function authHeaders(){
+  return { 'X-Telegram-Init-Data': tg?.initData || '', 'Content-Type':'application/json' };
+}
+function withAuthQuery(url){
+  const initData = tg?.initData || '';
+  if(!initData) return url;
+  const u = new URL(url, location.origin);
+  u.searchParams.set('initData', initData);
+  return u.toString();
+}
 
 /* ---------- API ---------- */
 async function apiGet(path){
-  const r = await fetch(path,{headers:authHeaders()});
+  // Header + query fallback
+  let r = await fetch(withAuthQuery(path), { headers: authHeaders() });
+  if(!r.ok){
+    // try once more without headers (if a proxy strips them)
+    r = await fetch(withAuthQuery(path));
+  }
   if(!r.ok) throw new Error('http '+r.status);
   return r.json();
 }
 async function apiPost(path, body){
-  const r = await fetch(path,{method:'POST',headers:authHeaders(),body:JSON.stringify(body||{})});
+  let r = await fetch(withAuthQuery(path), { method:'POST', headers: authHeaders(), body: JSON.stringify(body||{}) });
+  if(!r.ok){
+    r = await fetch(withAuthQuery(path), { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body||{}) });
+  }
   if(!r.ok) throw new Error('http '+r.status);
   return r.json();
 }
+
+/* ---------- STATE ---------- */
+let ORDERS = [];
 
 /* ---------- HELPERS ---------- */
 const peso = n => Math.round(n).toLocaleString('en-PH');
@@ -253,10 +288,10 @@ function wireRowActions(){
       try{
         const j = await apiPost(`/api/admin/orders/${id}/sendlink`, { link });
         if(!j.ok) throw new Error('not ok');
-        alert('Delivery link sent to customer.');
+        toast('Delivery link sent to customer.');
         await fetchOrders();
       }catch(err){
-        console.error(err); alert('Failed to send link.');
+        console.error(err); toast('Failed to send link.');
       }finally{ e.currentTarget.disabled = false; }
     };
   });
@@ -270,7 +305,7 @@ function wireRowActions(){
         if(!j.ok) throw new Error('not ok');
         await fetchOrders();
       }catch(err){
-        console.error(err); alert('Failed to update status.');
+        console.error(err); toast('Failed to update status.');
       }
     };
   });
@@ -285,13 +320,13 @@ function wireRowActions(){
         if(!j.ok) throw new Error('not ok');
         await fetchOrders();
       }catch(err){
-        console.error(err); alert('Failed to cancel order.');
+        console.error(err); toast('Failed to cancel order.');
       }finally{ e.currentTarget.disabled = false; }
     };
   });
 }
 
-/* ---------- SHOP TOGGLE (now persistent) ---------- */
+/* ---------- SHOP TOGGLE (persistent) ---------- */
 const shopToggle = document.getElementById('shopToggle');
 
 function setShopToggle(on){
@@ -301,7 +336,6 @@ function setShopToggle(on){
 
 async function syncShopToggleFromServer(){
   try{
-    // /health does not need admin auth; keep simple
     const r = await fetch('/health');
     if(r.ok){
       const j = await r.json();
@@ -311,7 +345,6 @@ async function syncShopToggleFromServer(){
         return;
       }
     }
-    // Fallback to localStorage
     const ls = localStorage.getItem('ys_shop_open');
     if(ls !== null) setShopToggle(ls==='1');
   }catch{
@@ -324,20 +357,33 @@ async function flipShop(){
   const on = !shopToggle.classList.contains('on');
   setShopToggle(on); // optimistic UI
   localStorage.setItem('ys_shop_open', on ? '1':'0');
-  // Inform backend (ignore errors to avoid flipping user UI back)
   try { await apiPost('/api/admin/shop', { open:on }); } catch(e){ console.warn('toggle sync failed', e); }
 }
 
 shopToggle.addEventListener('click', flipShop);
 shopToggle.addEventListener('keydown', e => { if(e.key==='Enter'||e.key===' ') { e.preventDefault(); flipShop(); } });
 
-/* ---------- UI EVENTS ---------- */
+/* ---------- FETCH & INIT ---------- */
+async function fetchOrders(){
+  try{
+    const j = await apiGet('/api/admin/orders');
+    if(!j.ok) throw new Error(j.error || 'not ok');
+    ORDERS = j.orders || [];
+    renderAll();
+  }catch(err){
+    console.error('orders load error', err);
+    toast('Auth/DB error loading orders');
+    // still render empty state
+    ORDERS = [];
+    renderAll();
+  }
+}
+
 document.getElementById('ordersFilter').addEventListener('change', renderAll);
 document.getElementById('salesRange').addEventListener('change', renderAll);
 document.getElementById('btnRefresh').addEventListener('click', fetchOrders);
 
-/* ---------- INIT ---------- */
-syncShopToggleFromServer();   // <-- get real state on load
+syncShopToggleFromServer();
 fetchOrders();
 </script>
 </body>

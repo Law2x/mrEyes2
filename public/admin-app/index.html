@@ -72,7 +72,7 @@
 
   /* chat in card (shrink message area ~20%) */
   .chat{background:#0b111b;border:1px solid var(--line);border-radius:12px;padding:10px;margin-top:10px}
-  .msg-list{display:flex;flex-direction:column;gap:10px;min-height:64px;max-height:160px;overflow:auto;padding-right:6px} /* was 80/200 */
+  .msg-list{display:flex;flex-direction:column;gap:10px;min-height:64px;max-height:160px;overflow:auto;padding-right:6px}
   .msg{display:flex}
   .msg .bub{max-width:85%;padding:10px 12px;border-radius:12px;border:1px solid var(--line);white-space:pre-wrap}
   .msg.customer{justify-content:flex-start}
@@ -85,6 +85,13 @@
   .empty{color:var(--muted)}
 
   .unauth{background:#1b1210;border:1px solid #3e2a24;color:#ffd6b5;padding:12px;border-radius:12px;margin:10px 0}
+
+  /* messenger-style icon button */
+  .icon-btn{
+    display:inline-flex;align-items:center;justify-content:center;
+    width:34px;height:34px;border-radius:10px;border:1px solid #2a364c;background:#1a2333;cursor:pointer;
+  }
+  .icon-btn svg{width:18px;height:18px;display:block;opacity:.9}
 </style>
 </head>
 <body>
@@ -110,6 +117,7 @@
             <option value="confirmed">Order confirmed</option>
             <option value="out_for_delivery">Out for delivery</option>
             <option value="delivered">Delivered</option>
+            <option value="cancelled">Cancelled</option>
           </select>
         </h4>
         <div class="row">
@@ -153,7 +161,8 @@
     document.getElementById("unauth").style.display = insideTG ? "none" : "block";
 
     /* ---------------- small helpers ---------------- */
-    const $ = (s)=>document.querySelector(s);
+    const $  = (s)=>document.querySelector(s);
+    const $$ = (s)=>document.querySelectorAll(s);
     const cards = $("#cards");
     const shopToggle = $("#shopToggle");
     const btnRefresh = $("#btnRefresh");
@@ -171,17 +180,57 @@
     };
     const esc = (s)=> (s||"").replace(/[&<>"']/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m]));
 
-    /* ---------------- state ---------------- */
-    let ORDERS = [];
-    const POLL = new Map(); // orderId -> intervalId
+    /* ---------------- filters + date helpers ---------------- */
+    let ORDER_FILTER = "all";     // all | confirmed | out_for_delivery | delivered | cancelled
+    let SALES_RANGE  = "today";   // today | week | month | all
 
-    /* ---------------- render ---------------- */
+    const asDate = (d)=> (d instanceof Date ? d : new Date(d));
+
+    function inRange(dt, range){
+      const now = new Date();
+      if (range === "all") return true;
+      if (range === "today"){
+        const a = new Date(now); a.setHours(0,0,0,0);
+        const b = new Date(now); b.setHours(23,59,59,999);
+        return dt >= a && dt <= b;
+      }
+      if (range === "week"){
+        const day = (now.getDay()+6)%7; // Monday start
+        const a = new Date(now); a.setDate(now.getDate()-day); a.setHours(0,0,0,0);
+        const b = new Date(a);  b.setDate(a.getDate()+7); b.setMilliseconds(-1);
+        return dt >= a && dt <= b;
+      }
+      if (range === "month"){
+        const a = new Date(now.getFullYear(), now.getMonth(), 1, 0,0,0,0);
+        const b = new Date(now.getFullYear(), now.getMonth()+1, 0, 23,59,59,999);
+        return dt >= a && dt <= b;
+      }
+      return true;
+    }
+
+    // Normalize to one of our filterable statuses
+    function normalizeStatus(o){
+      const txt = (o.statusText || o.status || "").toString().toLowerCase();
+      const stg = Number(o.statusStage);
+      if (stg === 2 || txt.includes("delivered")) return "delivered";
+      if (stg === -1 || txt.includes("cancel")) return "cancelled";
+      if (txt.includes("out") && txt.includes("delivery")) return "out_for_delivery";
+      if (stg === 1 || txt.includes("confirm")) return "confirmed";
+      return "confirmed"; // default after creation
+    }
+
+    /* ---------------- state ---------------- */
+    let ORDERS_ALL = [];       // raw from API, normalized
+    const POLL = new Map();    // orderId -> intervalId
+
+    /* ---------------- render helpers ---------------- */
     function itemsList(items){
       if (!items?.length) return "";
       return `<ul class="list">${items.map(i=>`<li>${esc(i.category)} — ${esc(i.amount)}`).join("")}</ul>`;
     }
 
     function cardHtml(o){
+      const isDelivered = normalizeStatus(o) === "delivered";
       return `
       <div class="card" data-id="${o.id}">
         <div class="row" style="justify-content:space-between">
@@ -196,7 +245,7 @@
 
         ${itemsList(o.items)}
 
-        ${Number(o.statusStage)===2 ? `
+        ${isDelivered ? `
           <div class="row" style="align-items:flex-start; gap:12px; margin-top:10px">
             <div style="width:36px;height:36px;border-radius:50%;border:2px solid #1e9b57;display:flex;align-items:center;justify-content:center;color:#86f7b9">✓</div>
             <div>
@@ -206,12 +255,18 @@
           </div>` : ""}
 
         <div class="card-actions">
-          ${Number(o.statusStage)===2 ? "" : `
+          ${isDelivered ? "" : `
             <button class="btn small" data-act="sendlink">Send link</button>
             <button class="btn small" data-act="stage1">Order confirmed</button>
             <button class="btn small red" data-act="cancel">Cancel</button>
           `}
-          <button class="btn small" data-act="toggle-chat">Chat</button>
+          <button class="icon-btn" data-act="toggle-chat" title="Chat">
+            <!-- messenger-like bubble with lightning -->
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M21 11.5c0 4.418-4.03 8-9 8-1.15 0-2.25-.18-3.25-.52L3 20l1.2-3.3C3.44 15.3 3 13.93 3 12.5 3 8.08 7.03 5 12 5s9 3.08 9 6.5Z"/>
+              <path d="M10 12l3-3-1 3 2 2-3 1 1-3-2-2Z"/>
+            </svg>
+          </button>
         </div>
 
         <div class="chat" id="chat-${o.id}" style="display:none">
@@ -224,21 +279,41 @@
       </div>`;
     }
 
+    /* ---------- DERIVED DATA (filters!) ---------- */
+    function filteredOrders(){
+      return ORDERS_ALL.filter(o => {
+        const st = normalizeStatus(o);
+        return ORDER_FILTER === "all" ? true : st === ORDER_FILTER;
+      });
+    }
+
+    function parseOrderTotalPHP(order){
+      const items = order.items || [];
+      let t = 0;
+      items.forEach(it=>{
+        const m = /₱\s*([\d,]+)/.exec(String(it.amount));
+        if (m) t += Number(m[1].replace(/,/g,"")) || 0;
+        else if ((it.category||"").startsWith("poppers")) t += 700; // your original fallback
+      });
+      return t;
+    }
+
+    function salesTotal(){
+      // only delivered orders count as sales
+      return ORDERS_ALL
+        .filter(o => normalizeStatus(o) === "delivered")
+        .filter(o => inRange(asDate(o.createdAt), SALES_RANGE))
+        .reduce((sum, o) => sum + parseOrderTotalPHP(o), 0);
+    }
+
+    /* ---------------- render ---------------- */
     function render(){
-      cards.innerHTML = ORDERS.map(cardHtml).join("") || `<div class="muted">No orders yet.</div>`;
-      // summary numbers
-      $("#ordersCount").textContent = String(ORDERS.length);
-      const total = ORDERS.reduce((sum,o)=>{
-        const items = o.items || [];
-        let t = 0;
-        items.forEach(it=>{
-          const m = /₱\s*([\d,]+)/.exec(String(it.amount));
-          if (m) t += Number(m[1].replace(/,/g,"")) || 0;
-          else if ((it.category||"").startsWith("poppers")) t += 700;
-        });
-        return sum + t;
-      },0);
-      $("#salesTotal").textContent = peso(total);
+      const list = filteredOrders().sort((a,b)=> new Date(b.createdAt) - new Date(a.createdAt));
+      cards.innerHTML = list.map(cardHtml).join("") || `<div class="muted">No orders for this filter.</div>`;
+
+      // summary numbers (use DERIVED arrays!)
+      $("#ordersCount").textContent = String(list.length);
+      $("#salesTotal").textContent  = peso(salesTotal());
     }
 
     /* ---------------- load data ---------------- */
@@ -246,7 +321,14 @@
       try{ const j = await api("/api/admin/shop"); shopToggle.checked = !!j.open; }catch{}
     }
     async function loadOrders(){
-      try{ const j = await api("/api/admin/orders"); ORDERS = j.orders || []; render(); }catch(e){ console.error(e); }
+      try{
+        const j = await api("/api/admin/orders");
+        ORDERS_ALL = (j.orders || []).map(o => ({
+          ...o,
+          createdAt: asDate(o.createdAt)
+        }));
+        render();
+      }catch(e){ console.error(e); }
     }
 
     /* ---------------- chat ---------------- */
@@ -281,7 +363,7 @@
 
     cards.addEventListener("click", async (ev)=>{
       const card = ev.target.closest(".card"); if (!card) return;
-      const id = Number(card.dataset.id); const act = ev.target.dataset.act;
+      const id = Number(card.dataset.id); const act = ev.target.dataset.act || ev.target.closest("[data-act]")?.dataset.act;
 
       if (act === "toggle-chat"){
         const wrap = document.getElementById(`chat-${id}`);
@@ -314,6 +396,10 @@
         return;
       }
     });
+
+    /* filters -> re-render */
+    $("#ordersRange").addEventListener("change", (e)=>{ ORDER_FILTER = e.target.value; render(); });
+    $("#salesRange").addEventListener("change",  (e)=>{ SALES_RANGE  = e.target.value; render(); });
 
     /* ---------------- init ---------------- */
     (async function init(){ await loadShop(); await loadOrders(); })();

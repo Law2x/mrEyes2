@@ -1,387 +1,372 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8" />
-<meta
-  name="viewport"
-  content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover"
-/>
-<title>Yelo🟡Spot — Admin Dashboard</title>
-<style>
-  :root{
-    --bg: #0f1115;
-    --panel: #151922;
-    --panel-2: #10141b;
-    --text: #e9eef5;
-    --muted: #9aa3b2;
-    --accent: #ffd84d;      /* Yelo */
-    --ok: #2ecc71;
-    --warn: #ffb347;
-    --err: #ff6b6b;
-    --card-glow: 0 10px 30px rgba(0,0,0,.35);
-    --radius: 16px;
-    --pill-h: 40px;
-  }
-  *{box-sizing:border-box}
-  html,body{height:100%}
-  body{
-    margin:0;
-    background: radial-gradient(1200px 700px at 70% -10%, #1a2030 0%, #0f1115 60%),
-                linear-gradient(180deg,#0d1016 0%, #0f1115 100%);
-    color:var(--text);
-    font: 14px/1.45 system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji";
-    letter-spacing:.1px;
-  }
-  .wrap{max-width:980px;margin:0 auto;padding:12px 16px 80px}
-
-  /* ===== Header ===== */
-  .topbar{
-    position: sticky; top:0; z-index:5;
-    backdrop-filter: blur(8px);
-    background: linear-gradient(180deg, rgba(17,20,28,.72), rgba(17,20,28,.35) 60%, transparent);
-    border-bottom: 1px solid rgba(255,255,255,.04);
-  }
-  .brandrow{
-    display:flex; align-items:center; justify-content:space-between;
-    gap:12px; padding:14px 4px 10px;
-  }
-  .brand{
-    display:flex; flex-direction:column; gap:4px; min-width:0;
-  }
-  .brand .title{
-    display:flex; align-items:center; gap:10px; font-weight:800;
-    font-size:24px; letter-spacing:.2px; text-shadow:0 1px 0 #000;
-  }
-  .dot{width:10px;height:10px;border-radius:50%;background:#ffd84d;box-shadow:0 0 0 4px rgba(255,216,77,.15), 0 0 20px rgba(255,216,77,.25)}
-  .subtitle{color:var(--muted);font-size:12px}
-
-  .controls{display:flex; align-items:center; gap:10px; flex:0 0 auto}
-
-  /* Pills (Shop+Refresh) */
-  .pill{
-    height: var(--pill-h);
-    display:flex; align-items:center; gap:10px;
-    padding: 0 12px;
-    background: linear-gradient(180deg, #171c26, #121722);
-    border: 1px solid rgba(255,255,255,.06);
-    border-radius: 999px;
-    box-shadow: var(--card-glow);
-  }
-
-  /* Shop Toggle */
-  .shop-pill{position:relative; padding-left:14px}
-  .shop-pill .label{font-weight:700; color:#dfe6f3}
-  .toggle{
-    width:52px;height:28px;border-radius:999px;cursor:pointer;
-    background:#222836; border:1px solid rgba(255,255,255,.08);
-    position:relative; transition:.25s ease;
-    box-shadow: inset 0 2px 10px rgba(0,0,0,.5);
-  }
-  .knob{
-    position:absolute; top:50%; transform:translateY(-50%);
-    left:4px; width:20px; height:20px; border-radius:50%;
-    background: radial-gradient(circle at 35% 35%, #e4f7f0 0%, #b7f1d3 40%, #7be7b2 70%, #34d399 100%);
-    box-shadow: 0 2px 8px rgba(0,0,0,.4);
-    transition:.25s ease;
-  }
-  .shop-pill.on .toggle{background:#113320;border-color:#1b8a4c; box-shadow: inset 0 2px 10px rgba(37,160,96,.3), 0 0 16px rgba(53,196,125,.35)}
-  .shop-pill.on .knob{ left:28px; box-shadow:0 0 12px rgba(34,197,94,.65) }
-  /* breathing glow */
-  @keyframes breathe { 0%,100%{ box-shadow:0 0 12px rgba(34,197,94,.5)} 50%{ box-shadow:0 0 20px rgba(34,197,94,.85)} }
-  .shop-pill.on .knob{ animation: breathe 1.8s ease-in-out infinite }
-
-  /* Refresh button */
-  .refresh{
-    background: linear-gradient(180deg, #ffe07a, #ffcf3a);
-    color:#151515; font-weight:800;
-    border:1px solid #e7b600;
-  }
-  .refresh .ico{display:inline-block; transform-origin:50% 50%}
-  @keyframes spin { to { transform: rotate(360deg) } }
-  @keyframes pulse { 0%,100%{filter:brightness(1)} 50%{filter:brightness(1.12)} }
-  .refresh.spinning .ico{ animation: spin .8s linear }
-  .refresh.spinning{ animation: pulse .8s ease-in-out }
-
-  /* ===== Stats row ===== */
-  .row{display:flex; gap:14px; align-items:stretch; flex-wrap:wrap}
-  .stat{
-    flex:1 1 0; min-width: 280px;
-    background: linear-gradient(180deg, #161b25, #121723);
-    border: 1px solid rgba(255,255,255,.06);
-    border-radius: var(--radius);
-    padding:14px;
-    box-shadow: var(--card-glow);
-  }
-  .stat .hdr{
-    display:flex; align-items:center; justify-content:space-between;
-    gap:8px; margin-bottom:8px;
-  }
-  .stat .hdr .title{font-weight:800; font-size:16px}
-  .seg{
-    height:32px; display:inline-flex; align-items:center; gap:10px;
-    padding:0 12px; color:#d7deea; background:#1a2030;
-    border:1px solid rgba(255,255,255,.06); border-radius:10px;
-  }
-  .big{
-    font-weight:900; font-size:40px; letter-spacing:.5px;
-    text-shadow: 0 1px 0 #000;
-  }
-
-  /* ===== Orders list ===== */
-  h2{margin:20px 4px 10px; font-size:22px; letter-spacing:.3px}
-  .card{
-    background: linear-gradient(180deg, #171b26, #121722);
-    border: 1px solid rgba(255,255,255,.06);
-    border-radius: var(--radius);
-    padding:14px;
-    box-shadow: var(--card-glow);
-  }
-  .orders{display:flex; flex-direction:column; gap:14px}
-
-  .pill-status{
-    display:inline-flex; align-items:center; gap:6px;
-    padding:6px 10px; border-radius:999px; font-weight:700; font-size:12px;
-    background:#1b2a21; color:#b9f2d1; border:1px solid rgba(74,222,128,.35)
-  }
-  .pill-status.confirmed{ background:#222a3a; color:#cfe0ff; border-color: rgba(148,163,184,.35)}
-  .pill-status.canceled{ background:#3a2226; color:#ffd6da; border-color: rgba(255,107,107,.35)}
-
-  .order-hdr{
-    display:flex; flex-wrap:wrap; gap:8px 12px; align-items:center; justify-content:space-between;
-  }
-  .meta{display:flex; gap:8px; align-items:center; flex-wrap:wrap}
-  .ordid{font-weight:800; color:#aab6c8; background:#1b2231; padding:6px 10px; border-radius:9px; border:1px solid rgba(255,255,255,.06)}
-  .time{font-weight:700; color:#cfd7e6; background:#171e2b; padding:6px 10px; border-radius:9px; border:1px solid rgba(255,255,255,.06)}
-  .name{font-size:18px; font-weight:800; margin:8px 2px 6px}
-  .addr{color:#b9c1d1}
-
-  .actions{display:flex; gap:10px; flex-wrap:wrap; margin-top:12px}
-  .btn{
-    height:36px; padding:0 14px; border-radius:10px; border:1px solid rgba(255,255,255,.08);
-    background:#1a2030; color:#dfe6f3; font-weight:700; cursor:pointer;
-    box-shadow: var(--card-glow);
-  }
-  .btn:active{ transform: translateY(1px) }
-  .btn.ok{ background:#12261a; border-color:#2b8b52}
-  .btn.err{ background:#2a1b1e; border-color:#a34848}
-  .btn[disabled]{opacity:.45; pointer-events:none; filter:grayscale(.5)}
-
-  /* Big delivered check overlay */
-  .delivered-wrap{
-    position:relative;
-  }
-  .delivered-wrap.delivered::after{
-    content:"✔";
-    position:absolute; right:12px; bottom:8px; font-size:52px;
-    color: rgba(46,204,113,.18);
-    text-shadow: 0 0 18px rgba(46,204,113,.15);
-    pointer-events:none;
-  }
-
-  /* Scrollbar subtle */
-  ::-webkit-scrollbar{height:8px;width:8px}
-  ::-webkit-scrollbar-thumb{background:#1b2231;border-radius:99px}
-</style>
+  <meta charset="utf-8" />
+  <meta
+    name="viewport"
+    content="width=device-width,initial-scale=1,viewport-fit=cover"
+  />
+  <title>Yelo🟡Spot — Admin Dashboard</title>
+  <style>
+    :root{
+      --bg:#0b0f17; --panel:#111827; --muted:#6b7280; --text:#e5e7eb; --soft:#151b26;
+      --brand:#ffd400; --ok:#22c55e; --warn:#f59e0b; --danger:#ef4444; --line:#1f2937;
+      --btn:#1f2937; --btnH:#2b3649; --pill:#0f1b12; --shadow:0 8px 24px rgba(0,0,0,.35);
+      --radius:14px;
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0; background:linear-gradient(180deg,var(--bg),#0d1522 70%), var(--bg);
+      color:var(--text); font:14px/1.45 ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Arial;
+      -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;
+      padding-bottom:32px;
+    }
+    .app{max-width:980px;margin:0 auto;padding:18px}
+    .topbar{display:flex;align-items:center;gap:14px}
+    .brand{display:flex;align-items:center;gap:10px;font-weight:800;font-size:22px}
+    .brand .dot{width:18px;height:18px;border-radius:50%;background:var(--brand);display:inline-block}
+    .spacer{flex:1}
+    .chip{display:inline-flex;align-items:center;gap:8px;border-radius:999px;padding:6px 10px;
+          background:var(--pill); color:#b8f6c2; border:1px solid rgba(34,197,94,.25)}
+    .chip .led{width:9px;height:9px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 3px rgba(34,197,94,.15)}
+    .btn{background:var(--btn);border:1px solid #263143;color:#dbe2ea;border-radius:12px;padding:9px 12px;cursor:pointer}
+    .btn:hover{background:var(--btnH)}
+    .small{padding:6px 10px;border-radius:10px;font-size:13px}
+    .grid{display:grid;gap:14px;margin-top:16px}
+    @media(min-width:900px){.grid{grid-template-columns:1fr 1fr}}
+    .panel{background:linear-gradient(180deg,var(--panel),var(--soft)); border:1px solid var(--line);
+           border-radius:var(--radius); box-shadow:var(--shadow); overflow:hidden}
+    .p-head{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;border-bottom:1px solid var(--line)}
+    .p-title{font-weight:700}
+    .p-body{padding:12px 16px}
+    .muted{color:var(--muted)}
+    table{width:100%;border-collapse:collapse}
+    th,td{padding:10px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+    th{color:#9aa6b2;font-weight:700;text-align:left}
+    .badge{display:inline-block;border:1px solid #2c3a50;background:#0f172a;padding:4px 8px;border-radius:999px;font-size:12px}
+    .badge.ok{border-color:#1e8f4d;color:#a6f3c3;background:#0e1b14}
+    .badge.out{border-color:#3aa3ff;color:#cbe6ff;background:#0d1723}
+    .badge.done{border-color:#22c55e;color:#c7f9d4;background:#0f1b12}
+    .badge.cancel{border-color:#ef4444;color:#fecaca;background:#220e12}
+    .row-actions{display:flex;gap:6px;flex-wrap:wrap}
+    .input, textarea{width:100%;background:#0e1523;border:1px solid #1f2937;border-radius:12px;
+                     color:var(--text);padding:10px 12px}
+    textarea{min-height:54px;resize:vertical}
+    .chat-wrap{display:flex;flex-direction:column;gap:10px}
+    .chat-sel{width:100%}
+    .msg-list{background:#0a101a;border:1px solid var(--line);border-radius:12px;min-height:160px;
+              padding:12px;display:flex;flex-direction:column;gap:10px}
+    .msg{display:flex;gap:10px}
+    .msg .bubble{max-width:86%;padding:10px 12px;border-radius:12px;border:1px solid var(--line)}
+    .msg.admin{justify-content:flex-end}
+    .msg.admin .bubble{background:#10213a}
+    .msg.customer .bubble{background:#141c28}
+    .empty{color:var(--muted);text-align:center;padding:14px}
+    .row{display:flex;gap:8px;align-items:center}
+    .select{appearance:none;background:#0e1523;border:1px solid #1f2937;border-radius:10px;
+            color:var(--text);padding:8px 10px}
+    .pill-btn{border-radius:10px}
+    .help{font-size:13px;color:#9aa6b2}
+    .warn{color:#fbbf24}
+  </style>
 </head>
 <body>
-  <div class="topbar">
-    <div class="wrap brandrow">
-      <div class="brand">
-        <div class="title">
-          <span class="dot"></span>
-          <span id="shopName">Yelo🟡Spot</span>
+  <div class="app">
+    <!-- Top -->
+    <div class="topbar">
+      <div class="brand">Yelo<span class="dot"></span>Spot</div>
+      <div class="spacer"></div>
+      <div id="shopChip" class="chip"><span class="led"></span> <b>Shop:</b>&nbsp;<span id="shopState">—</span></div>
+      <button id="btnRefresh" class="btn small">Refresh</button>
+    </div>
+
+    <!-- Stats (optional count placeholders) -->
+    <div class="grid" style="grid-template-columns: 1fr 320px;">
+      <!-- Orders -->
+      <div class="panel" style="grid-column:1 / span 1">
+        <div class="p-head">
+          <div class="p-title">Recent Orders</div>
+          <div class="row">
+            <select id="timeFilter" class="select small">
+              <option value="all">All</option>
+              <option value="today">Today</option>
+              <option value="7d">Last 7 days</option>
+              <option value="30d">Last 30 days</option>
+            </select>
+          </div>
         </div>
-        <div class="subtitle">Admin dashboard</div>
+        <div class="p-body" id="ordersBox">
+          <div class="empty" id="notTG" style="display:none">
+            <b>Unauthorized:</b> Please open inside Telegram <span class="help">(Admin WebApp)</span>.
+          </div>
+          <div style="overflow:auto">
+            <table id="ordersTable">
+              <thead>
+                <tr>
+                  <th style="min-width:72px">Order</th>
+                  <th style="min-width:120px">Created</th>
+                  <th style="min-width:200px">Customer</th>
+                  <th style="min-width:220px">Items</th>
+                  <th>Stage</th>
+                  <th style="min-width:210px">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="ordersBody">
+                <tr><td colspan="6" class="empty">No data.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
       </div>
 
-      <div class="controls">
-        <!-- Shop pill -->
-        <div id="shopPill" class="pill shop-pill">
-          <span class="label">Shop</span>
-          <div id="shopToggle" class="toggle"><span class="knob"></span></div>
+      <!-- Chat -->
+      <div class="panel" style="grid-column:2 / span 1">
+        <div class="p-head">
+          <div class="p-title">Chat</div>
         </div>
-        <!-- Refresh -->
-        <button id="refreshBtn" class="pill refresh" type="button">
-          <span class="ico">⟲</span>&nbsp;Refresh
-        </button>
+        <div class="p-body chat-wrap">
+          <select id="orderSelect" class="select chat-sel">
+            <option value="">Select an order to view messages</option>
+          </select>
+          <div class="msg-list" id="msgList"><div class="empty">No messages yet.</div></div>
+          <div class="row">
+            <textarea id="chatInput" placeholder="Type a message to customer…"></textarea>
+          </div>
+          <div class="row" style="justify-content:flex-end">
+            <button id="sendBtn" class="btn">Send</button>
+          </div>
+          <div class="help">Messages send from here appear to the customer as <b>“Admin”</b>.</div>
+        </div>
       </div>
     </div>
   </div>
 
-  <div class="wrap">
-    <!-- Stats row -->
-    <div class="row" style="margin-top:10px">
-      <section class="stat">
-        <div class="hdr">
-          <div class="title">Orders</div>
-          <div id="ordersFilter" class="seg">All</div>
-        </div>
-        <div class="big" id="ordersCount">0</div>
-      </section>
+  <!-- Telegram WebApp SDK -->
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <script>
+    // ---------- Telegram WebApp bootstrap ----------
+    const tg = window.Telegram?.WebApp;
+    let initData = "";
+    let isInsideTelegram = false;
 
-      <section class="stat">
-        <div class="hdr">
-          <div class="title">Sales</div>
-          <div id="salesRange" class="seg">Today</div>
-        </div>
-        <div class="big">₱ <span id="salesTotal">0</span></div>
-      </section>
-    </div>
-
-    <h2>All orders</h2>
-    <div id="ordersList" class="orders"></div>
-  </div>
-
-<script>
-/* ===== Minimal glue to keep your existing API calls working ===== */
-/* Replace URLs if your endpoints differ; visual polish only.      */
-
-const $ = (q, el=document) => el.querySelector(q);
-const elShopPill = $('#shopPill');
-const elShopToggle = $('#shopToggle');
-const elRefresh = $('#refreshBtn');
-const elOrdersCount = $('#ordersCount');
-const elSalesTotal = $('#salesTotal');
-const elOrdersList = $('#ordersList');
-
-/* ---------- Hydrate UI from your existing state ---------- */
-let shopOpen = true;   // your JS should overwrite this after fetching status
-let orders = [];       // your JS should overwrite this after loading orders
-
-/* ⭐ glow/polish: ensure pill reflects state */
-function paintShopPill(){
-  elShopPill.classList.toggle('on', !!shopOpen);
-}
-
-/* Example render for orders (adjust to your data shape) */
-function renderOrders(list = orders){
-  elOrdersList.innerHTML = '';
-  elOrdersCount.textContent = String(list.length || 0);
-
-  list.forEach(o => {
-    const delivered = (o.status === 'completed' || o.statusStage === 2);
-    const confirmed = (o.status === 'paid' || o.statusStage === 0);
-    const canceled  = (o.status === 'canceled' || o.statusStage === -1);
-
-    const card = document.createElement('div');
-    card.className = 'card delivered-wrap' + (delivered ? ' delivered' : '');
-    card.innerHTML = `
-      <div class="order-hdr">
-        <div class="meta">
-          <span class="ordid">#${o.id}</span>
-          ${delivered ? `<span class="pill-status">delivered</span>` :
-             canceled ? `<span class="pill-status canceled">canceled</span>` :
-                        `<span class="pill-status confirmed">confirmed</span>`}
-          <span class="time">${formatDate(o.createdAt)}</span>
-        </div>
-      </div>
-      <div class="name">${escapeHtml(o.name || '—')} • ${escapeHtml(o.phone || '')}</div>
-      <div class="addr">${escapeHtml(o.address || '')}</div>
-      <div class="addr" style="margin-top:6px">${renderItems(o.items || [])}</div>
-      <div class="actions">
-        <button class="btn" ${delivered || canceled ? 'disabled' : ''} data-act="send" data-id="${o.id}">Send link</button>
-        <button class="btn ${delivered ? 'ok' : ''}" ${canceled ? 'disabled' : ''} data-act="delivered" data-id="${o.id}">${delivered ? 'Delivered' : 'Mark delivered'}</button>
-        <button class="btn err" ${delivered ? 'disabled' : ''} data-act="cancel" data-id="${o.id}">Cancel</button>
-      </div>
-    `;
-    elOrdersList.appendChild(card);
-  });
-}
-
-/* helpers */
-function formatDate(iso){
-  try{
-    const d = new Date(iso);
-    return d.toLocaleString([], {year:'numeric', month:'numeric', day:'numeric', hour:'numeric', minute:'2-digit'});
-  }catch{ return iso || '' }
-}
-function escapeHtml(s){ return String(s).replace(/[&<>"']/g, m=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m])) }
-function renderItems(items){
-  if (!items || !items.length) return '';
-  return items.map(i => `• ${escapeHtml(i.category || '')} — ${escapeHtml(i.amount || '')}`).join('<br>');
-}
-
-/* ---------- Event wiring ---------- */
-
-/* ⭐ glow/polish: animated refresh */
-elRefresh.addEventListener('click', async () => {
-  elRefresh.classList.add('spinning');
-  try{
-    // call your existing fetch/refresh logic here:
-    await refreshAll();
-  } finally {
-    setTimeout(()=> elRefresh.classList.remove('spinning'), 750);
-  }
-});
-
-/* Toggle shop (call your existing endpoint here) */
-elShopToggle.addEventListener('click', async () => {
-  shopOpen = !shopOpen;
-  paintShopPill();
-
-  // TODO: wire to your backend if you have HTTP toggle; else you already manage it in Telegram.
-  // await fetch('/api/admin/shop-toggle', {method:'POST', headers:tgHeaders(), body:JSON.stringify({open:shopOpen})}).catch(()=>{});
-});
-
-/* Actions in order cards (uses your existing endpoints) */
-elOrdersList.addEventListener('click', async (e) => {
-  const b = e.target.closest('button[data-act]');
-  if (!b) return;
-  const id = +b.dataset.id;
-  const act = b.dataset.act;
-
-  try{
-    if (act === 'send'){
-      const link = prompt('Paste delivery/tracking link:');
-      if (!link) return;
-      await fetch(`/api/admin/orders/${id}/sendlink`, {method:'POST', headers: tgHeaders(), body: JSON.stringify({link})});
-      await refreshAll();
-    } else if (act === 'delivered'){
-      await fetch(`/api/admin/orders/${id}/stage`, {method:'POST', headers: tgHeaders(), body: JSON.stringify({stage:2})});
-      await refreshAll();
-    } else if (act === 'cancel'){
-      if (!confirm('Cancel this order?')) return;
-      await fetch(`/api/admin/orders/${id}/stage`, {method:'POST', headers: tgHeaders(), body: JSON.stringify({stage:-1})});
-      await refreshAll();
+    if (tg && tg.initData) {
+      initData = tg.initData;
+      isInsideTelegram = true;
+      tg.ready();
+      tg.expand && tg.expand();
+    } else {
+      // Fallback: allow testing via ?initData=...
+      const qp = new URLSearchParams(location.search);
+      initData = qp.get("initData") || "";
+      isInsideTelegram = !!initData;
     }
-  }catch(err){
-    alert('Action failed.');
-  }
-});
 
-/* ---------- Data loading (kept minimal; keep your logic) ---------- */
-function tgHeaders(){
-  const initData = window.Telegram?.WebApp?.initData || new URLSearchParams(location.search).get('initData') || '';
-  return {'Content-Type':'application/json','X-Telegram-Init-Data':initData};
-}
+    // Show unauthorized banner if not in Telegram
+    document.getElementById("notTG").style.display = isInsideTelegram ? "none" : "block";
 
-async function refreshAll(){
-  // Load orders
-  const r = await fetch('/api/admin/orders', {headers: tgHeaders()});
-  const j = await r.json();
-  if (!j.ok) throw new Error('Auth/DB error');
-  orders = j.orders || [];
-  renderOrders(orders);
+    // ---------- Helpers ----------
+    const $ = (sel) => document.querySelector(sel);
+    const ordersBody = $("#ordersBody");
+    const orderSelect = $("#orderSelect");
+    const msgList = $("#msgList");
+    const chatInput = $("#chatInput");
+    const sendBtn = $("#sendBtn");
+    const shopStateEl = $("#shopState");
+    const btnRefresh = $("#btnRefresh");
 
-  // Sales total (simple example: ₱700 for each poppers & parse other amounts if needed)
-  const total = orders.reduce((sum, o) => {
-    const add = (o.items||[]).reduce((s,it)=>{
-      // crude parse for "₱1,000 — 0.056" → 1000 ; "₱700 • Iron Horse" → 700
-      const m = String(it.amount||'').match(/₱\s*([\d,]+)/);
-      return s + (m ? parseInt(m[1].replace(/,/g,''),10) : 0);
-    },0);
-    return sum + add;
-  },0);
-  elSalesTotal.textContent = total.toLocaleString();
+    async function api(path, method = "GET", body) {
+      const res = await fetch(path, {
+        method,
+        headers: {
+          "Content-Type": "application/json",
+          "X-Telegram-Init-Data": initData
+        },
+        body: body ? JSON.stringify(body) : undefined
+      });
+      const j = await res.json().catch(() => ({}));
+      if (!j?.ok) throw new Error(j?.error || "api_error");
+      return j;
+    }
 
-  // Shop pill state – if you expose a status endpoint, set shopOpen accordingly.
-  // shopOpen = (await (await fetch('/api/admin/shop-status', {headers: tgHeaders()})).json()).open;
-  paintShopPill();
-}
+    function fmtDate(iso){
+      try{
+        const d = new Date(iso);
+        return d.toLocaleString();
+      }catch{ return iso || "-" }
+    }
+    function stageBadge(o){
+      const s = Number(o.statusStage ?? 0);
+      if (s === 2) return '<span class="badge done">Delivered</span>';
+      if (s === 1) return '<span class="badge out">Out for delivery</span>';
+      if (s === -1) return '<span class="badge cancel">Canceled</span>';
+      return '<span class="badge">Preparing</span>';
+    }
+    function itemsText(items){
+      if (!items || !items.length) return "—";
+      return items.map(i => `${i.category} — ${i.amount}`).join("<br>");
+    }
 
-/* kick off */
-refreshAll().catch(()=>{ /* handled by visual; keep quiet */ });
-paintShopPill();
-</script>
+    // ---------- Shop state ----------
+    async function loadShop(){
+      try{
+        const j = await api("/api/admin/shop");
+        shopStateEl.textContent = j.open ? "OPEN" : "CLOSED";
+        const led = document.querySelector("#shopChip .led");
+        led.style.background = j.open ? "#22c55e" : "#ef4444";
+        document.querySelector("#shopChip").style.color = j.open ? "#b8f6c2" : "#fecaca";
+        document.querySelector("#shopChip").style.borderColor = j.open ? "rgba(34,197,94,.25)" : "rgba(239,68,68,.25)";
+        document.querySelector("#shopChip").style.background = j.open ? "var(--pill)" : "#1e0f11";
+      }catch(e){
+        shopStateEl.textContent = "—";
+      }
+    }
+
+    // ---------- Orders ----------
+    let ORDERS = [];
+    async function loadOrders(){
+      try{
+        const j = await api("/api/admin/orders");
+        ORDERS = j.orders || [];
+        // Fill table
+        ordersBody.innerHTML = "";
+        if (!ORDERS.length){
+          ordersBody.innerHTML = '<tr><td colspan="6" class="empty">No orders yet.</td></tr>';
+        }else{
+          ORDERS.forEach(o => {
+            const tr = document.createElement("tr");
+            tr.innerHTML = `
+              <td>#${o.id}</td>
+              <td>${fmtDate(o.createdAt)}</td>
+              <td>
+                <div><b>${o.name || "N/A"}</b></div>
+                <div class="muted">${o.phone || ""}</div>
+                <div class="muted" style="max-width:280px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${o.address || ""}</div>
+              </td>
+              <td style="max-width:260px">${itemsText(o.items)}</td>
+              <td>${stageBadge(o)}</td>
+              <td class="row-actions">
+                <button class="btn small pill-btn" data-act="view" data-id="${o.id}">View</button>
+                <button class="btn small pill-btn" data-act="send" data-id="${o.id}">Send Link</button>
+                <button class="btn small pill-btn" data-act="done" data-id="${o.id}">Done</button>
+                <button class="btn small pill-btn" data-act="cancel" data-id="${o.id}">Cancel</button>
+              </td>`;
+            ordersBody.appendChild(tr);
+          });
+        }
+        // Fill chat selector
+        orderSelect.innerHTML = '<option value="">Select an order to view messages</option>';
+        ORDERS.forEach(o=>{
+          const opt = document.createElement("option");
+          opt.value = String(o.id);
+          opt.textContent = `#${o.id} — ${o.name || o.phone || o.customerChatId}`;
+          orderSelect.appendChild(opt);
+        });
+      }catch(e){
+        console.error(e);
+        ordersBody.innerHTML = `<tr><td colspan="6" class="empty">Unauthorized: Please open inside Telegram (Admin WebApp).</td></tr>`;
+      }
+    }
+
+    ordersBody.addEventListener("click", async (ev)=>{
+      const btn = ev.target.closest("button[data-act]");
+      if (!btn) return;
+      const id = Number(btn.dataset.id);
+      const act = btn.dataset.act;
+
+      if (act === "view"){
+        orderSelect.value = String(id);
+        await loadMessages(id);
+        msgList.scrollTop = msgList.scrollHeight;
+      }
+      if (act === "send"){
+        const link = prompt("Enter delivery/tracking link:");
+        if (!link) return;
+        try{
+          await api(`/api/admin/orders/${id}/sendlink`, "POST", { link });
+          alert("Link sent to customer.");
+          await loadOrders();
+        }catch(e){ alert("Failed to send link."); }
+      }
+      if (act === "done"){
+        try{
+          await api(`/api/admin/orders/${id}/stage`, "POST", { stage: 2 });
+          await loadOrders();
+        }catch(e){ alert("Failed to update stage."); }
+      }
+      if (act === "cancel"){
+        if (!confirm("Cancel this order?")) return;
+        try{
+          await api(`/api/admin/orders/${id}/stage`, "POST", { stage: -1 });
+          await loadOrders();
+        }catch(e){ alert("Failed to update stage."); }
+      }
+    });
+
+    // ---------- Chat ----------
+    let currentOrderId = null;
+
+    async function loadMessages(orderId){
+      if (!orderId){ msgList.innerHTML = '<div class="empty">No messages yet.</div>'; return; }
+      try{
+        const j = await api(`/api/admin/orders/${orderId}/messages`);
+        const msgs = j.messages || [];
+        if (!msgs.length){
+          msgList.innerHTML = '<div class="empty">No messages yet.</div>';
+          return;
+        }
+        msgList.innerHTML = "";
+        msgs.forEach(m=>{
+          const el = document.createElement("div");
+          el.className = `msg ${m.sender}`;
+          el.innerHTML = `<div class="bubble">
+              <div style="font-size:12px;color:#9aa6b2">${m.sender === 'admin' ? 'Admin' : 'Customer'} • ${fmtDate(m.created_at||m.createdAt)}</div>
+              <div style="margin-top:4px;white-space:pre-wrap">${escapeHtml(m.message||'')}</div>
+            </div>`;
+          msgList.appendChild(el);
+        });
+        msgList.scrollTop = msgList.scrollHeight;
+      }catch(e){
+        msgList.innerHTML = '<div class="empty">Unable to load messages.</div>';
+      }
+    }
+
+    function escapeHtml(s){
+      return (s||"").replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+    }
+
+    orderSelect.addEventListener("change", async ()=>{
+      currentOrderId = Number(orderSelect.value || 0) || null;
+      await loadMessages(currentOrderId);
+    });
+
+    sendBtn.addEventListener("click", async ()=>{
+      const id = Number(orderSelect.value || 0);
+      const message = chatInput.value.trim();
+      if (!id) { alert("Select an order first."); return; }
+      if (!message) return;
+      try{
+        await api(`/api/admin/orders/${id}/messages`, "POST", { message });
+        chatInput.value = "";
+        await loadMessages(id);
+      }catch(e){
+        alert("Failed to send message.");
+      }
+    });
+
+    // ---------- Refresh ----------
+    btnRefresh.addEventListener("click", async ()=>{
+      await Promise.all([loadShop(), loadOrders()]);
+      if (orderSelect.value) await loadMessages(Number(orderSelect.value));
+    });
+
+    // ---------- Initial ----------
+    (async function init(){
+      await loadShop();
+      await loadOrders();
+      // Optional: auto-poll chat for selected order every 6s
+      setInterval(()=>{ if (orderSelect.value) loadMessages(Number(orderSelect.value)); }, 6000);
+    })();
+  </script>
 </body>
 </html>

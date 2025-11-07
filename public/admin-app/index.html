@@ -5,25 +5,17 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Yelo🟡Spot — Admin</title>
 <style>
-/* ==== THEME ==== */
 :root{
   --bg:#0f1115; --panel:#161a21; --panel-2:#1b2029; --border:#212735;
   --muted:#93a0b8; --text:#eef3fb; --brand:#ffd54d; --accent:#ffc400;
   --success:#18c37e; --danger:#ff5c6c;
-  --r:12px; --r-sm:10px; --gap:12px; --max:980px;
+  --r:12px; --gap:12px; --max:980px;
 }
-
-/* ==== BASE ==== */
 *{box-sizing:border-box}
-html,body{margin:0;background:var(--bg);color:var(--text);font:14px/1.35 system-ui,-apple-system,Segoe UI,Roboto,Arial}
+html,body{margin:0;background:var(--bg);color:var(--text);font:14px/1.35 system-ui,-apple-system,Segoe UI,Roboto,Arial;overflow-x:hidden}
 h1,h2,h3,p{margin:0}
 small{color:var(--muted)}
 .wrap{max-width:var(--max);margin:0 auto;padding:0 14px}
-.nowrap{white-space:nowrap}
-.ellipsis{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.break{overflow-wrap:anywhere}
-
-/* ==== TOP BAR ==== */
 .bar{position:sticky;top:0;z-index:5;background:rgba(15,17,21,.92);backdrop-filter:blur(8px);border-bottom:1px solid rgba(255,255,255,.06)}
 .bar__row{display:flex;align-items:center;justify-content:space-between;padding:8px 14px}
 .brand{display:flex;align-items:center;gap:10px}
@@ -31,7 +23,6 @@ small{color:var(--muted)}
 .brand__stack{display:flex;flex-direction:column}
 .brand__title{font-weight:900;letter-spacing:.2px;font-size:clamp(18px,3.5vw,26px)}
 .brand__subtitle{color:var(--muted);font-size:clamp(10px,2.3vw,12px);margin-top:2px}
-
 .controls{display:flex;align-items:center;gap:10px}
 .pill{height:clamp(26px,5vw,34px);display:flex;align-items:center;gap:8px;padding:0 clamp(10px,2.5vw,12px);border-radius:999px}
 .switch{background:#1e2330;border:1px solid var(--border);font-weight:800}
@@ -40,40 +31,19 @@ small{color:var(--muted)}
 .toggle.on{background:#1f5f3e}
 .toggle.on:before{transform:translateX(clamp(16px,3.7vw,20px));background:#34d399}
 .btn{background:linear-gradient(180deg,#ffd86b,#ffc400);color:#242400;border:none;cursor:pointer;font-weight:800}
-
-/* ==== SECTION ==== */
 .section{padding:12px 0}
-
-/* ==== METRICS ROW (ALWAYS TWO COLUMNS) ==== */
-.metrics{
-  display:grid;
-  grid-template-columns: minmax(0,1fr) minmax(0,1fr);
-  gap:var(--gap);
-}
-.metric{
-  background:var(--panel-2); border:1px solid var(--border); border-radius:var(--r);
-  padding:clamp(8px,2.5vw,12px); box-shadow:0 4px 12px rgba(0,0,0,.35);
-  min-height:clamp(78px,17vw,92px);
-}
+.metrics{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:var(--gap)}
+.metric{background:var(--panel-2);border:1px solid var(--border);border-radius:var(--r);
+  padding:clamp(8px,2.5vw,12px);min-height:clamp(78px,17vw,92px);box-shadow:0 4px 12px rgba(0,0,0,.35)}
 .metric__head{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;gap:8px}
 .metric__title{font-weight:800;font-size:clamp(13px,2.8vw,16px)}
 .value{font-size:clamp(22px,6vw,28px);font-weight:900;letter-spacing:.4px}
-
-/* Selects scale, never overflow */
-.select{
-  appearance:none;background:#232938;color:var(--text);border:1px solid var(--border);
+.select{appearance:none;background:#232938;color:var(--text);border:1px solid var(--border);
   border-radius:8px;padding:clamp(4px,1vw,6px) clamp(8px,2vw,10px);
-  font-size:clamp(11px,2.7vw,13px);font-weight:700;max-width:60%;
-}
-
-/* Headings */
+  font-size:clamp(11px,2.7vw,13px);font-weight:700;max-width:60%}
 .h2{font-weight:900;margin:18px 0 10px;font-size:clamp(18px,5vw,22px)}
-
-/* ==== ORDER CARD ==== */
-.card{
-  background:var(--panel);border:1px solid var(--border);border-radius:var(--r);
-  padding:clamp(10px,2.6vw,12px); margin-bottom:12px; box-shadow:0 6px 16px rgba(0,0,0,.35)
-}
+.card{background:var(--panel);border:1px solid var(--border);border-radius:var(--r);
+  padding:clamp(10px,2.6vw,12px);margin-bottom:12px;box-shadow:0 6px 16px rgba(0,0,0,.35)}
 .row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .badge{display:inline-flex;align-items:center;padding:4px 10px;border-radius:999px;font-weight:800;font-size:clamp(11px,2.8vw,12px)}
 .badge--muted{background:#1f2430;color:#9aa3b7}
@@ -85,16 +55,12 @@ small{color:var(--muted)}
 .btn-sm{border:none;border-radius:8px;padding:7px 12px;font-size:clamp(11px,3vw,12px);font-weight:700;cursor:pointer}
 .btn-ghost{background:#232938;color:var(--text)}
 .btn-danger{background:var(--danger);color:#fff}
-
-/* Prevent any horizontal scroll */
-html,body{overflow-x:hidden}
-.wrap,.metrics,.metric,.card{min-width:0}
+.minw0{min-width:0}
 </style>
 </head>
 <body>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 
-<!-- ====== TOP BAR ====== -->
 <div class="bar">
   <div class="bar__row wrap">
     <div class="brand">
@@ -114,11 +80,9 @@ html,body{overflow-x:hidden}
   </div>
 </div>
 
-<!-- ====== CONTENT ====== -->
 <div class="wrap section">
   <div class="metrics" id="metricsRow">
-    <!-- Orders -->
-    <div class="metric">
+    <div class="metric minw0">
       <div class="metric__head">
         <div class="metric__title">Orders</div>
         <select id="ordersFilter" class="select" aria-label="Orders filter">
@@ -132,8 +96,7 @@ html,body{overflow-x:hidden}
       <div class="value" id="ordersCount">0</div>
     </div>
 
-    <!-- Sales -->
-    <div class="metric">
+    <div class="metric minw0">
       <div class="metric__head">
         <div class="metric__title">Sales</div>
         <select id="salesRange" class="select" aria-label="Sales range">
@@ -152,121 +115,185 @@ html,body{overflow-x:hidden}
 </div>
 
 <script>
-  const tg = window.Telegram?.WebApp; tg?.ready?.(); tg?.expand?.();
+const tg = window.Telegram?.WebApp; tg?.ready?.(); tg?.expand?.();
+const authHeaders = ()=>({'X-Telegram-Init-Data': tg?.initData || '', 'Content-Type':'application/json'});
 
-  const authHeaders = () => ({
-    'X-Telegram-Init-Data': tg?.initData || '',
-    'Content-Type': 'application/json'
-  });
+let ORDERS = [];
 
-  let ORDERS = [];
+/* ---------- API ---------- */
+async function apiGet(path){
+  const r = await fetch(path,{headers:authHeaders()});
+  if(!r.ok) throw new Error('http '+r.status);
+  return r.json();
+}
+async function apiPost(path, body){
+  const r = await fetch(path,{method:'POST',headers:authHeaders(),body:JSON.stringify(body||{})});
+  if(!r.ok) throw new Error('http '+r.status);
+  return r.json();
+}
 
-  // ---- Fetch & render ----
-  async function fetchOrders(){
-    try{
-      const r = await fetch('/api/admin/orders', { headers: authHeaders() });
-      const j = await r.json();
-      if(!j.ok) throw new Error('not ok');
-      ORDERS = j.orders || [];
-      renderAll();
-    }catch(e){
-      console.error('Auth/DB error loading orders', e);
-      document.getElementById('ordersList').innerHTML =
-        '<div class="card">Auth/DB error loading orders</div>';
-    }
+/* ---------- HELPERS ---------- */
+const peso = n => Math.round(n).toLocaleString('en-PH');
+const stageKey = s => (s===-1?'canceled':s===1?'out':s===2?'delivered':'confirmed');
+const stageFromKey = k => (k==='canceled'?-1 : k==='out'?1 : k==='delivered'?2 : 0);
+
+function saleFromItems(items){
+  let sum = 0;
+  for(const it of (items||[])){
+    const m = (it.amount||'').match(/₱\s*([\d,]+)/);
+    if(m) sum += Number(m[1].replace(/,/g,''));
   }
-
-  const peso = n => Math.round(n).toLocaleString('en-PH');
-  const keyByStage = s => (s===-1?'canceled':s===1?'out':s===2?'delivered':'confirmed');
-
-  function saleFromItems(items){
-    let sum = 0;
-    for(const it of (items||[])){
-      const m = (it.amount||'').match(/₱\s*([\d,]+)/);
-      if(m) sum += Number(m[1].replace(/,/g,''));
-    }
-    return sum;
+  return sum;
+}
+function inRange(iso, range){
+  const t = new Date(iso), now = new Date();
+  if(range==='today'){
+    const a = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const b = new Date(a); b.setDate(a.getDate()+1);
+    return t>=a && t<b;
   }
-
-  function inRange(iso, range){
-    const t = new Date(iso), now = new Date();
-    if(range==='today'){
-      const a = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      const b = new Date(a); b.setDate(a.getDate()+1);
-      return t>=a && t<b;
-    }
-    if(range==='week'){
-      const a = new Date(now); a.setDate(now.getDate() - now.getDay()); a.setHours(0,0,0,0);
-      const b = new Date(a); b.setDate(a.getDate()+7);
-      return t>=a && t<b;
-    }
-    if(range==='month'){
-      const a = new Date(now.getFullYear(), now.getMonth(), 1);
-      const b = new Date(now.getFullYear(), now.getMonth()+1, 1);
-      return t>=a && t<b;
-    }
-    return true;
+  if(range==='week'){
+    const a = new Date(now); a.setDate(now.getDate()-now.getDay()); a.setHours(0,0,0,0);
+    const b = new Date(a); b.setDate(a.getDate()+7);
+    return t>=a && t<b;
   }
+  if(range==='month'){
+    const a = new Date(now.getFullYear(), now.getMonth(), 1);
+    const b = new Date(now.getFullYear(), now.getMonth()+1, 1);
+    return t>=a && t<b;
+  }
+  return true;
+}
 
-  function renderAll(){
-    // Orders count by filter
-    const f = document.getElementById('ordersFilter').value;
-    const filtered = ORDERS.filter(o => f==='all' || keyByStage(o.statusStage)===f);
-    document.getElementById('ordersCount').textContent = filtered.length;
+/* ---------- RENDER ---------- */
+function renderAll(){
+  const filter = document.getElementById('ordersFilter').value;
+  const range = document.getElementById('salesRange').value;
 
-    // Sales
-    const range = document.getElementById('salesRange').value;
-    const sales = ORDERS
-      .filter(o => keyByStage(o.statusStage)==='delivered' && inRange(o.createdAt, range))
-      .reduce((a,o)=>a + saleFromItems(o.items), 0);
-    document.getElementById('salesValue').textContent = peso(sales);
+  const filtered = ORDERS.filter(o => filter==='all' || stageKey(o.statusStage)===filter);
+  document.getElementById('ordersCount').textContent = filtered.length;
 
-    // List
-    const list = document.getElementById('ordersList');
-    list.innerHTML = filtered.map(o => {
-      const stage = keyByStage(o.statusStage);
-      const badgeClass = stage==='delivered' ? 'badge--ok' :
-                         stage==='out'       ? 'badge--warn' : 'badge--muted';
-      return `
-      <div class="card">
+  const sales = ORDERS
+    .filter(o => stageKey(o.statusStage)==='delivered' && inRange(o.createdAt, range))
+    .reduce((a,o)=> a + saleFromItems(o.items), 0);
+  document.getElementById('salesValue').textContent = peso(sales);
+
+  const list = document.getElementById('ordersList');
+  list.innerHTML = filtered.map(o => {
+    const k = stageKey(o.statusStage);
+    const badgeClass = k==='delivered' ? 'badge--ok' : (k==='out' ? 'badge--warn' : 'badge--muted');
+    const options = `
+      <option value="confirmed" ${k==='confirmed'?'selected':''}>Order confirmed</option>
+      <option value="out" ${k==='out'?'selected':''}>Out for delivery</option>
+      <option value="delivered" ${k==='delivered'?'selected':''}>Delivered</option>
+      <option value="canceled" ${k==='canceled'?'selected':''}>Canceled</option>
+    `;
+    return `
+      <div class="card" data-id="${o.id}">
         <div class="row">
           <span class="badge badge--muted">#${o.id}</span>
-          <span class="badge ${badgeClass}">${stage}</span>
+          <span class="badge ${badgeClass}">${k}</span>
           <span class="badge badge--muted">${new Date(o.createdAt).toLocaleString()}</span>
         </div>
-        <div class="title ellipsis">${o.name || 'Customer'} • ${o.phone || ''}</div>
-        <div class="addr break">${o.address || ''}</div>
-        <div class="item break">${(o.items||[]).map(i=>`• ${i.category} — ${i.amount}`).join('<br>')}</div>
-        <div class="row" style="margin-top:6px">
-          <button class="btn-sm btn-ghost">Send link</button>
-          <button class="btn-sm btn-danger">Cancel</button>
+        <div class="title">${o.name || 'Customer'} • ${o.phone || ''}</div>
+        <div class="addr">${o.address || ''}</div>
+        <div class="item">${(o.items||[]).map(i=>`• ${i.category} — ${i.amount}`).join('<br>')}</div>
+        <div class="row" style="margin-top:8px">
+          <button class="btn-sm btn-ghost js-send">Send link</button>
+          <select class="select js-stage" style="max-width:48%">${options}</select>
+          <button class="btn-sm btn-danger js-cancel" style="margin-left:auto">Cancel</button>
         </div>
       </div>`;
-    }).join('');
-  }
+  }).join('');
 
-  // UI events
-  document.getElementById('ordersFilter').addEventListener('change', renderAll);
-  document.getElementById('salesRange').addEventListener('change', renderAll);
-  document.getElementById('btnRefresh').addEventListener('click', fetchOrders);
+  wireRowActions();
+}
 
-  // Shop toggle (same compact size as Refresh)
-  const shopToggle = document.getElementById('shopToggle');
-  async function setShop(open){
-    try{ await fetch('/api/admin/shop', { method:'POST', headers:authHeaders(), body:JSON.stringify({ open }) }); }
-    catch(e){ console.warn('toggle shop failed', e); }
-  }
-  function flip(){
-    shopToggle.classList.toggle('on');
-    const on = shopToggle.classList.contains('on');
-    shopToggle.setAttribute('aria-checked', on ? 'true':'false');
-    setShop(on);
-  }
-  shopToggle.addEventListener('click', flip);
-  shopToggle.addEventListener('keydown', e => { if(e.key==='Enter'||e.key===' ') { e.preventDefault(); flip(); } });
+/* ---------- ROW ACTIONS ---------- */
+function wireRowActions(){
+  // Send link
+  document.querySelectorAll('.js-send').forEach(btn=>{
+    btn.onclick = async (e)=>{
+      const card = e.currentTarget.closest('.card'); const id = card.dataset.id;
+      const link = prompt('Paste the delivery / tracking link:');
+      if(!link) return;
+      e.currentTarget.disabled = true;
+      try{
+        const j = await apiPost(`/api/admin/orders/${id}/sendlink`, { link });
+        if(!j.ok) throw new Error('not ok');
+        alert('Delivery link sent to customer.');
+        // Setting stage to "out" happens server-side in your endpoint; refresh list:
+        await fetchOrders();
+      }catch(err){
+        console.error(err); alert('Failed to send link.');
+      }finally{ e.currentTarget.disabled = false; }
+    };
+  });
 
-  // Start
-  fetchOrders();
+  // Stage dropdown
+  document.querySelectorAll('.js-stage').forEach(sel=>{
+    sel.onchange = async (e)=>{
+      const card = e.currentTarget.closest('.card'); const id = card.dataset.id;
+      const key = e.currentTarget.value;
+      try{
+        const j = await apiPost(`/api/admin/orders/${id}/stage`, { stage: stageFromKey(key) });
+        if(!j.ok) throw new Error('not ok');
+        await fetchOrders();
+      }catch(err){
+        console.error(err); alert('Failed to update status.');
+      }
+    };
+  });
+
+  // Cancel
+  document.querySelectorAll('.js-cancel').forEach(btn=>{
+    btn.onclick = async (e)=>{
+      const card = e.currentTarget.closest('.card'); const id = card.dataset.id;
+      if(!confirm('Cancel this order?')) return;
+      e.currentTarget.disabled = true;
+      try{
+        const j = await apiPost(`/api/admin/orders/${id}/stage`, { stage: -1 });
+        if(!j.ok) throw new Error('not ok');
+        await fetchOrders();
+      }catch(err){
+        console.error(err); alert('Failed to cancel order.');
+      }finally{ e.currentTarget.disabled = false; }
+    };
+  });
+}
+
+/* ---------- FETCH ---------- */
+async function fetchOrders(){
+  try{
+    const j = await apiGet('/api/admin/orders');
+    if(!j.ok) throw new Error('not ok');
+    ORDERS = j.orders || [];
+    renderAll();
+  }catch(e){
+    console.error('Auth/DB error loading orders', e);
+    document.getElementById('ordersList').innerHTML =
+      '<div class="card">Auth/DB error loading orders</div>';
+  }
+}
+
+/* ---------- SHOP TOGGLE ---------- */
+const shopToggle = document.getElementById('shopToggle');
+function flip(){
+  shopToggle.classList.toggle('on');
+  const on = shopToggle.classList.contains('on');
+  shopToggle.setAttribute('aria-checked', on ? 'true':'false');
+  apiPost('/api/admin/shop', { open:on }).catch(()=>{});
+}
+shopToggle.addEventListener('click', flip);
+shopToggle.addEventListener('keydown', e => { if(e.key==='Enter'||e.key===' ') { e.preventDefault(); flip(); } });
+
+/* ---------- UI EVENTS ---------- */
+document.getElementById('ordersFilter').addEventListener('change', renderAll);
+document.getElementById('salesRange').addEventListener('change', renderAll);
+document.getElementById('btnRefresh').addEventListener('click', fetchOrders);
+
+/* ---------- INIT ---------- */
+fetchOrders();
 </script>
 </body>
 </html>

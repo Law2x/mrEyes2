@@ -22,135 +22,81 @@
   *{box-sizing:border-box}
   html,body{height:100%}
   body{
-    margin:0;background:
-      radial-gradient(1200px 600px at -10% -10%, #152035 0%, transparent 60%),
-      radial-gradient(900px 900px at 110% -20%, #1a1435 0%, transparent 55%),
-      var(--bg);
-    color:var(--text);
-    font:14px/1.4 system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+    margin:0;background:radial-gradient(1200px 600px at -10% -10%, #152035 0%, transparent 60%),
+    radial-gradient(900px 900px at 110% -20%, #1a1435 0%, transparent 55%),
+    var(--bg); color:var(--text); font:14px/1.4 system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
   }
   .wrap{max-width:1100px;margin:20px auto 80px;padding:0 16px}
 
   /* Header */
-  .hdr{
-    display:grid;grid-template-columns: 1fr auto;gap:12px;align-items:center;margin-bottom:16px;
-  }
+  .hdr{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:center;margin-bottom:16px}
   .brand{display:flex;flex-direction:column;gap:4px;min-width:0}
-  .brand .title{
-    font-weight:800;letter-spacing:.5px;line-height:1.1;
-    font-size: clamp(22px, 3.4vw, 34px);
-    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
-  }
+  .brand .title{font-weight:800;letter-spacing:.5px;line-height:1.1;font-size:clamp(22px,3.4vw,34px);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .brand .subtitle{color:var(--muted);font-size:12px;opacity:.9}
-
   .hdr-ctrls{display:flex;gap:8px;align-items:center}
-  .tiny-btn,
-  .toggle{
+  .tiny-btn{
     padding:6px 10px;border:1px solid var(--line);background:var(--btn);
-    border-radius:10px;color:var(--text);cursor:pointer;font-weight:700;font-size:12px;user-select:none;
-    display:inline-flex;align-items:center;gap:8px;
+    border-radius:10px;color:var(--text);cursor:pointer;font-weight:700;font-size:12px;user-select:none
   }
-  .tiny-btn:hover,.toggle:hover{filter:brightness(1.05)}
+  .tiny-btn:hover{filter:brightness(1.05)}
+  .toggle{
+    display:flex;align-items:center;gap:8px;background:var(--btn);
+    border:1px solid var(--line);padding:6px 10px;border-radius:10px;cursor:pointer;
+    font-size:12px;font-weight:800
+  }
   .dot{width:10px;height:10px;border-radius:999px;background:var(--bad);box-shadow:0 0 0 2px #0004}
   .dot.on{background:var(--good)}
 
-  /* KPIs row (1 line) */
+  /* KPIs one line */
   .kpis{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin:8px 0 16px}
   .kpi{
-    background:linear-gradient(180deg, var(--panel), var(--panel-2));
-    border:1px solid var(--line); border-radius:16px; padding:12px 14px;
-    display:flex; align-items:center; justify-content:space-between; min-height:66px;
+    background:linear-gradient(180deg,var(--panel),var(--panel-2));
+    border:1px solid var(--line);border-radius:16px;padding:12px 14px;
+    display:flex;align-items:center;justify-content:space-between;min-height:66px
   }
   .kpi h3{margin:0;font-size:12px;color:var(--muted);font-weight:800}
   .kpi .val{font-size:22px;font-weight:900;letter-spacing:.3px}
   .filter{display:flex;gap:8px;align-items:center;margin-top:8px}
-  .select{
-    background:var(--pill);border:1px solid var(--line);color:var(--text);
-    border-radius:10px;padding:6px 10px;font-weight:700;font-size:12px;
-  }
-  .pill{
-    background:#10121c;border:1px solid var(--line);padding:4px 8px;border-radius:999px;
-    font-size:11px;color:var(--muted);display:inline-flex;align-items:center;gap:6px
-  }
+  .select{background:var(--pill);border:1px solid var(--line);color:var(--text);border-radius:10px;padding:6px 10px;font-weight:700;font-size:12px}
 
   /* Main grid */
   .grid{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:14px}
-  .card{
-    background:linear-gradient(180deg, var(--panel), var(--panel-2));
-    border:1px solid var(--line); border-radius:18px; padding:12px;
-  }
+  .card{background:linear-gradient(180deg,var(--panel),var(--panel-2));border:1px solid var(--line);border-radius:18px;padding:12px}
   .card h2{margin:2px 0 8px 0;font-size:14px;color:var(--muted);font-weight:800;letter-spacing:.2px}
 
-  /* Table */
-  .table-wrap{overflow:auto;max-height:calc(100vh - 260px)}
   table{width:100%;border-collapse:separate;border-spacing:0 8px}
-  thead th{
-    position:sticky;top:0;background:linear-gradient(180deg, #141625,#12131a);
-    text-align:left;color:var(--muted);font-size:11px;font-weight:800;padding:8px 10px;border-bottom:1px solid var(--line);z-index:1
-  }
+  thead th{text-align:left;color:var(--muted);font-size:11px;font-weight:800;padding:0 10px}
   tbody tr{background:var(--pill);border:1px solid var(--line)}
   tbody td{padding:10px;vertical-align:middle;font-size:13px}
+  .pill{background:#10121c;border:1px solid var(--line);padding:4px 8px;border-radius:999px;font-size:11px;color:var(--muted);display:inline-block}
   .items{max-width:260px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#dfe3fb}
-
   .row-actions{display:flex;gap:6px;flex-wrap:wrap}
-  .btn{
-    padding:6px 10px;border:1px solid var(--line);background:#10121c;border-radius:10px;color:var(--text);
-    font-size:12px;font-weight:800;cursor:pointer;
-  }
+  .btn{padding:6px 10px;border:1px solid var(--line);background:#10121c;border-radius:10px;color:var(--text);font-size:12px;font-weight:700;cursor:pointer}
   .btn:hover{filter:brightness(1.07)}
   .btn.bad{border-color:#442024;background:#231216;color:#ff9c9c}
   .btn.good{border-color:#1f3b2c;background:#14271e;color:#98f0c0}
   .btn.ghost{background:transparent}
   .btn:disabled{opacity:.45;cursor:not-allowed}
+  .status-select{background:#10121c;border:1px solid var(--line);color:var(--text);padding:6px 8px;border-radius:10px;font-size:12px;font-weight:700}
 
-  .status-select{
-    background:#10121c;border:1px solid var(--line);color:var(--text);
-    padding:6px 8px;border-radius:10px;font-size:12px;font-weight:800
-  }
-
-  /* Done marker */
-  .doneMark{display:inline-flex;align-items:center;gap:6px;font-weight:900;color:#9df2c9}
-  .doneMark svg{width:16px;height:16px}
-
-  /* Chat panel */
+  /* Chat side */
   .chat{position:sticky;top:12px;display:flex;flex-direction:column;gap:8px;height:calc(100vh - 160px)}
-  .messages{
-    flex:1;overflow:auto;border:1px solid var(--line);border-radius:14px;padding:10px;background:#0e1020;
-  }
+  .chat .messages{flex:1;overflow:auto;border:1px solid var(--line);border-radius:14px;padding:10px;background:#0e1020}
   .msg{margin:8px 0;max-width:85%}
   .msg .b{padding:8px 10px;border-radius:12px;border:1px solid var(--line)}
   .msg.admin .b{background:#121f18;border-color:#1f3b2c}
   .msg.customer .b{background:#1a1628;border-color:#37245a}
   .msg small{display:block;color:var(--muted);margin-top:4px}
   .compose{display:flex;gap:8px}
-  .compose input{
-    flex:1;background:var(--pill);border:1px solid var(--line);color:var(--text);
-    border-radius:12px;padding:10px;font-size:13px;
-  }
+  .compose input{flex:1;background:var(--pill);border:1px solid var(--line);color:var(--text);border-radius:12px;padding:10px;font-size:13px}
   .compose button{white-space:nowrap}
-
-  /* Empty/Loading */
-  .empty{padding:18px;border:1px dashed var(--line);border-radius:12px;color:var(--muted);text-align:center}
-  .spinner{display:inline-block;width:14px;height:14px;border:2px solid #2c2f45;border-top-color:#8ea0ff;border-radius:50%;animation:spin .9s linear infinite;vertical-align:-2px}
-  @keyframes spin{to{transform:rotate(360deg)}}
-
-  /* Toast */
-  .toast{
-    position:fixed;right:16px;bottom:16px;max-width:320px;background:#10121c;border:1px solid var(--line);
-    border-radius:12px;padding:10px 12px;color:var(--text);box-shadow:0 6px 30px #0008;font-weight:700;font-size:12px;display:none
-  }
-  .toast.show{display:block}
-
-  /* Scrollbar subtle */
   .messages::-webkit-scrollbar{height:10px;width:8px}
   .messages::-webkit-scrollbar-thumb{background:#2a2d46;border-radius:8px}
 
-  /* Mobile: stack chat */
-  @media (max-width: 720px){
-    .grid{grid-template-columns:1fr}
-    .chat{position:relative;height:auto}
-    .table-wrap{max-height:none}
-  }
+  .doneMark{display:inline-flex;align-items:center;gap:6px;font-weight:900;color:#9df2c9}
+  .doneMark svg{width:16px;height:16px}
+
+  @media (max-width:720px){.grid{grid-template-columns:1fr}.chat{position:relative;height:auto}}
 </style>
 </head>
 <body>
@@ -162,10 +108,7 @@
       <div class="subtitle">Admin Dashboard</div>
     </div>
     <div class="hdr-ctrls">
-      <button id="shopToggle" class="toggle" title="Open / Close Shop">
-        <span id="shopDot" class="dot"></span>
-        <span id="shopLabel">Shop: …</span>
-      </button>
+      <button id="shopToggle" class="toggle" title="Open / Close Shop"><span id="shopDot" class="dot"></span><span id="shopLabel">Shop: …</span></button>
       <button id="refreshBtn" class="tiny-btn" title="Refresh">Refresh</button>
     </div>
   </div>
@@ -178,7 +121,7 @@
         <div class="val" id="ordersCount">0</div>
       </div>
       <div class="filter">
-        <span class="pill">Timeline</span>
+        <label class="pill" for="statusFilter">Timeline</label>
         <select id="statusFilter" class="select">
           <option value="all">All</option>
           <option value="paid">Confirmed</option>
@@ -189,7 +132,6 @@
         </select>
       </div>
     </div>
-
     <div class="kpi">
       <div>
         <h3>Sales (₱)</h3>
@@ -203,13 +145,13 @@
     <!-- Orders -->
     <div class="card">
       <h2>Recent Orders</h2>
-      <div id="ordersEmpty" class="empty" style="display:none">No orders to display.</div>
-      <div class="table-wrap" id="ordersTableWrap">
+      <div id="ordersError" class="pill" style="display:none;margin:6px 0;"></div>
+      <div style="overflow:auto;">
         <table>
           <thead>
             <tr>
               <th style="width:80px">Order</th>
-              <th style="width:130px">Created</th>
+              <th style="width:140px">Created</th>
               <th style="width:160px">Customer</th>
               <th>Items</th>
               <th style="width:160px">Stage</th>
@@ -225,9 +167,7 @@
     <div class="card chat">
       <h2>Chat</h2>
       <div id="chatHead" class="pill">Select an order to view messages</div>
-      <div id="messages" class="messages">
-        <div id="chatEmpty" class="empty" style="margin:6px 0">No messages yet.</div>
-      </div>
+      <div id="messages" class="messages"></div>
       <div class="compose">
         <input id="msgInput" type="text" placeholder="Type a message to customer…" disabled />
         <button id="sendBtn" class="btn good" disabled>Send</button>
@@ -236,76 +176,76 @@
   </div>
 </div>
 
-<div id="toast" class="toast"></div>
-
 <script>
 /* ========= TELEGRAM WEBAPP AUTH ========= */
-const tg = (window.Telegram && window.Telegram.WebApp) ? window.Telegram.WebApp : null;
+const tg = window.Telegram && window.Telegram.WebApp ? window.Telegram.WebApp : null;
 try { tg && tg.expand(); } catch {}
+// read from Telegram or URL (?initData=...)
 const initData = tg ? tg.initData : (new URL(location.href).searchParams.get('initData') || '');
 
-/* ========= UTIL ========= */
-function showToast(msg, ms=3000){
-  const t = document.getElementById('toast');
-  t.textContent = msg;
-  t.classList.add('show');
-  clearTimeout(showToast._tid);
-  showToast._tid = setTimeout(()=>t.classList.remove('show'), ms);
-}
+/* ========= ROBUST API HELPER =========
+   Sends initData via header + query + (for POST) body to survive proxies. */
 async function api(path, opts = {}){
-  const res = await fetch(path, {
+  const hasQuery = path.includes('?');
+  const url = `${path}${hasQuery ? '&' : '?'}initData=${encodeURIComponent(initData || '')}`;
+
+  const method = (opts.method || 'GET').toUpperCase();
+  let body = opts.body;
+  if (method !== 'GET' && typeof body === 'string') {
+    try {
+      const obj = JSON.parse(body || '{}');
+      if (!obj.initData) obj.initData = initData || '';
+      body = JSON.stringify(obj);
+    } catch { /* leave as is */ }
+  }
+
+  const res = await fetch(url, {
     ...opts,
+    body,
     headers: {
       'Content-Type': 'application/json',
-      'X-Telegram-Init-Data': initData,
+      'X-Telegram-Init-Data': initData || '',
       ...(opts.headers||{})
     },
-    cache: 'no-store'
+    credentials: 'include'
   });
+
   if (!res.ok){
-    // If unauthorized, likely opened outside Telegram
-    if (res.status === 401) throw new Error('Unauthorized: open inside Telegram.');
     let msg = `HTTP ${res.status}`;
     try { const j = await res.json(); msg = j.error || JSON.stringify(j); } catch {}
     throw new Error(msg);
   }
   return res.json();
 }
-const peso = v => Number(v||0).toLocaleString('en-PH', { maximumFractionDigits: 0 });
-const byId = id => document.getElementById(id);
+
+/* ========= HELPERS ========= */
+const peso = v => Number(v||0).toLocaleString('en-PH',{maximumFractionDigits:0});
+function escapeHtml(s){return s.replace(/[&<>"]/g,c=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c]))}
 
 /* ========= STATE ========= */
 let ORDERS = [];
 let CURRENT_ORDER_ID = null;
 
-/* ========= SHOP TOGGLE ========= */
+/* ========= SHOP ========= */
 async function fetchShopState(){
-  // read-only from /health to reflect real bot state
-  const r = await fetch('/health', {cache:'no-store'}).then(r=>r.json()).catch(()=>({shop_open:null}));
-  setShopUI(!!r.shop_open);
+  try{
+    const r = await fetch('/health').then(r=>r.json());
+    setShopUI(!!r.shop_open);
+  }catch{ setShopUI(false); }
 }
 function setShopUI(open){
-  byId('shopDot').classList.toggle('on', open);
-  byId('shopLabel').textContent = open ? 'Shop: OPEN' : 'Shop: CLOSED';
-  byId('shopToggle').dataset.open = open ? '1' : '0';
+  document.getElementById('shopDot').classList.toggle('on', open);
+  document.getElementById('shopLabel').textContent = open ? 'Shop: OPEN' : 'Shop: CLOSED';
+  document.getElementById('shopToggle').dataset.open = open ? '1' : '0';
 }
 async function toggleShop(){
-  const willOpen = byId('shopToggle').dataset.open !== '1';
-  try{
-    // If you added this endpoint in index.js (recommended)
-    // app.post("/api/admin/shop", requireAdminWebApp, (req,res)=>{ SHOP_OPEN = !!req.body.open; res.json({ok:true,open:SHOP_OPEN}); });
-    const r = await api('/api/admin/shop', { method:'POST', body: JSON.stringify({ open: willOpen }) });
-    if (typeof r.open === 'boolean') setShopUI(r.open);
-    else setShopUI(willOpen); // fallback
-  }catch(e){
-    // UI still flips so admin has feedback; bot's real state remains as-is.
-    setShopUI(willOpen);
-    console.warn('Shop toggle fell back to UI-only:', e.message);
-    showToast('Shop toggle updated (UI).');
-  }
+  const willOpen = document.getElementById('shopToggle').dataset.open !== '1';
+  try { await api('/api/admin/shop', { method:'POST', body: JSON.stringify({ open: willOpen }) }); }
+  catch(e){ console.warn('Shop toggle API not found; UI-only flip.', e.message); }
+  setShopUI(willOpen);
 }
 
-/* ========= DATA HELPERS ========= */
+/* ========= ORDERS ========= */
 function matchFilter(o, val){
   if (val==='all') return true;
   if (val==='preparing') return (o.status==='paid' && (o.statusStage===0 || o.statusStage==null));
@@ -314,51 +254,36 @@ function matchFilter(o, val){
 function calcPriceFromItems(items){
   let sum = 0;
   for (const it of (items||[])){
-    if (!it || typeof it.amount !== 'string') continue;
-    const m = it.amount.match(/₱\s*([\d,]+)/);
+    const m = (it.amount||'').match(/₱\s*([\d,]+)/);
     if (m) sum += Number(m[1].replace(/,/g,''));
   }
   return sum;
 }
-
-/* ========= RENDER ========= */
 function renderOrders(){
-  const body = byId('ordersBody');
+  const body = document.getElementById('ordersBody');
   body.innerHTML = '';
+  const rows = ORDERS.filter(o=>matchFilter(o, document.getElementById('statusFilter').value));
 
-  const filterVal = byId('statusFilter').value;
-  const rows = ORDERS.filter(o=>matchFilter(o, filterVal));
+  document.getElementById('ordersCount').textContent = rows.length.toString();
 
-  // KPIs
-  byId('ordersCount').textContent = rows.length.toString();
-  let total = 0; for (const o of rows) total += calcPriceFromItems(o.items);
-  byId('salesTotal').textContent = peso(total);
-  byId('salesRange').textContent = 'Filtered';
-
-  // empty state
-  byId('ordersEmpty').style.display = rows.length ? 'none' : 'block';
-  byId('ordersTableWrap').style.display = rows.length ? 'block' : 'none';
+  let total = 0; for (const o of rows){ total += calcPriceFromItems(o.items); }
+  document.getElementById('salesTotal').textContent = peso(total);
 
   for (const o of rows){
     const tr = document.createElement('tr');
-    const disabled = (o.status === 'completed' || o.status === 'canceled');
+    const disabled = (o.status==='completed'||o.status==='canceled');
     const created = o.createdAt ? new Date(o.createdAt) : null;
-    const createdText = created ? created.toLocaleString() : '—';
     const itemsTxt = (o.items||[]).map(x=>`${x.category} — ${x.amount}`).join(', ');
-
     tr.innerHTML = `
       <td><span class="pill">#${o.id}</span></td>
-      <td>${createdText}</td>
-      <td>
-        <div style="font-weight:800">${o.name || '—'}</div>
-        <div style="color:var(--muted);font-size:12px">${o.phone || ''}</div>
-      </td>
-      <td class="items" title="${itemsTxt}">${itemsTxt || '—'}</td>
+      <td>${created ? created.toLocaleString() : '—'}</td>
+      <td><div style="font-weight:800">${o.name||'—'}</div><div style="color:var(--muted);font-size:12px">${o.phone||''}</div></td>
+      <td class="items" title="${itemsTxt}">${itemsTxt||'—'}</td>
       <td>
         ${disabled ? `
-          <span class="doneMark" title="${o.status}">
+          <span class="doneMark">
             <svg viewBox="0 0 24 24" fill="none"><path d="M20 7L9 18l-5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
-            ${o.status === 'completed' ? 'Delivered' : 'Canceled'}
+            ${o.status==='completed' ? 'Delivered' : 'Canceled'}
           </span>
         ` : `
           <select class="status-select" data-id="${o.id}">
@@ -377,155 +302,118 @@ function renderOrders(){
           <button class="btn good" data-act="done" data-id="${o.id}" ${disabled?'disabled':''}>Mark Delivered</button>
           <button class="btn bad" data-act="cancel" data-id="${o.id}" ${disabled?'disabled':''}>Cancel</button>
         </div>
-      </td>
-    `;
+      </td>`;
     body.appendChild(tr);
   }
 }
-
-/* ========= LOAD ========= */
-async function loadOrders(showSpinner=true){
-  if (showSpinner) { byId('ordersEmpty').innerHTML = '<span class="spinner"></span> Loading…'; byId('ordersEmpty').style.display='block'; }
-  const data = await api('/api/admin/orders');
-  ORDERS = data.orders || [];
-  renderOrders();
+async function loadOrders(){
+  const err = document.getElementById('ordersError');
+  err.style.display='none';
+  try{
+    const data = await api('/api/admin/orders');
+    ORDERS = data.orders || [];
+    renderOrders();
+  }catch(e){
+    ORDERS = [];
+    renderOrders();
+    err.textContent = (''+e.message).includes('missing initData') || (''+e.message).includes('unauthorized')
+      ? 'Unauthorized: Please open inside Telegram (Admin WebApp).'
+      : ('Failed to load orders: '+e.message);
+    err.style.display='inline-block';
+  }
 }
 
 /* ========= ACTIONS ========= */
 async function setStage(orderId, v){
   let stage = 0;
-  if (v==='paid' || v==='preparing') stage = 0;
+  if (v==='paid'||v==='preparing') stage = 0;
   else if (v==='out_for_delivery') stage = 1;
   else if (v==='completed') stage = 2;
   else if (v==='canceled') stage = -1;
-
-  await api(`/api/admin/orders/${orderId}/stage`, {
-    method:'POST', body: JSON.stringify({ stage })
-  });
-  await loadOrders(false);
+  await api(`/api/admin/orders/${orderId}/stage`, { method:'POST', body: JSON.stringify({ stage }) });
+  await loadOrders();
   if (CURRENT_ORDER_ID === orderId) await loadChat(orderId);
-  showToast('Order updated');
 }
 async function sendLink(orderId){
   const link = prompt('Paste delivery/tracking link:');
   if (!link) return;
-  await api(`/api/admin/orders/${orderId}/sendlink`, {
-    method:'POST', body: JSON.stringify({ link })
-  });
-  showToast('Link sent to customer');
-  await loadOrders(false);
+  await api(`/api/admin/orders/${orderId}/sendlink`, { method:'POST', body: JSON.stringify({ link }) });
+  alert('Link sent to customer.');
 }
 async function markDone(orderId){
-  await api(`/api/admin/orders/${orderId}/stage`, {
-    method:'POST', body: JSON.stringify({ stage: 2 })
-  });
-  await loadOrders(false);
-  showToast('Order marked delivered');
+  await api(`/api/admin/orders/${orderId}/stage`, { method:'POST', body: JSON.stringify({ stage:2 }) });
+  await loadOrders();
 }
 async function cancelOrder(orderId){
   if (!confirm('Cancel this order?')) return;
-  await api(`/api/admin/orders/${orderId}/stage`, {
-    method:'POST', body: JSON.stringify({ stage: -1 })
-  });
-  await loadOrders(false);
-  showToast('Order canceled');
+  await api(`/api/admin/orders/${orderId}/stage`, { method:'POST', body: JSON.stringify({ stage:-1 }) });
+  await loadOrders();
 }
 
 /* ========= CHAT ========= */
 function setChatEnabled(on){
-  byId('msgInput').disabled = !on;
-  byId('sendBtn').disabled = !on;
+  document.getElementById('msgInput').disabled = !on;
+  document.getElementById('sendBtn').disabled = !on;
 }
 function setChatHead(order){
-  const el = byId('chatHead');
-  if (!order){ el.textContent = 'Select an order to view messages'; return; }
-  el.textContent = `Order #${order.id} — ${order.name || 'Customer'} • ${order.phone || ''}`;
+  const el = document.getElementById('chatHead');
+  el.textContent = order ? `Order #${order.id} — ${order.name||'Customer'} • ${order.phone||''}` : 'Select an order to view messages';
 }
 async function loadChat(orderId){
   CURRENT_ORDER_ID = orderId;
   const order = ORDERS.find(o=>o.id===orderId) || null;
   setChatHead(order);
   setChatEnabled(true);
-
-  const box = byId('messages');
-  byId('chatEmpty').style.display = 'block';
-  byId('chatEmpty').innerHTML = '<span class="spinner"></span> Loading…';
-
   const data = await api(`/api/admin/orders/${orderId}/messages`);
+  const box = document.getElementById('messages');
   box.innerHTML = '';
-  const msgs = data.messages || [];
-  if (!msgs.length){
-    byId('chatEmpty').style.display = 'block';
-    byId('chatEmpty').textContent = 'No messages yet.';
-  } else {
-    byId('chatEmpty').style.display = 'none';
-    for (const m of msgs){
-      const d = document.createElement('div');
-      d.className = `msg ${m.sender}`;
-      const when = new Date(m.created_at||m.createdAt);
-      d.innerHTML = `<div class="b">${escapeHtml(m.message)}</div><small>${when.toLocaleString()}</small>`;
-      box.appendChild(d);
-    }
-    // smooth autoscroll
-    box.scrollTo({top: box.scrollHeight, behavior: 'smooth'});
+  for (const m of (data.messages||[])){
+    const d = document.createElement('div');
+    d.className = `msg ${m.sender}`;
+    d.innerHTML = `<div class="b">${escapeHtml(m.message)}</div><small>${new Date(m.created_at||m.createdAt).toLocaleString()}</small>`;
+    box.appendChild(d);
   }
+  box.scrollTop = box.scrollHeight;
 }
 async function sendChat(){
-  const input = byId('msgInput');
+  const input = document.getElementById('msgInput');
   const text = input.value.trim();
   if (!text || !CURRENT_ORDER_ID) return;
-  await api(`/api/admin/orders/${CURRENT_ORDER_ID}/messages`, {
-    method:'POST', body: JSON.stringify({ message: text })
-  });
+  await api(`/api/admin/orders/${CURRENT_ORDER_ID}/messages`, { method:'POST', body: JSON.stringify({ message: text }) });
   input.value = '';
   await loadChat(CURRENT_ORDER_ID);
 }
-function escapeHtml(s){return s.replace(/[&<>"]/g,c=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c]))}
 
-/* ========= EVENTS ========= */
-byId('refreshBtn').addEventListener('click', ()=>loadOrders().catch(e=>showToast(e.message)));
-byId('shopToggle').addEventListener('click', ()=>toggleShop().catch(e=>showToast(e.message)));
-byId('sendBtn').addEventListener('click', ()=>sendChat().catch(e=>showToast(e.message)));
-byId('statusFilter').addEventListener('change', ()=>renderOrders());
+/* ========= WIRING ========= */
+document.getElementById('refreshBtn').addEventListener('click', loadOrders);
+document.getElementById('shopToggle').addEventListener('click', toggleShop);
+document.getElementById('sendBtn').addEventListener('click', sendChat);
+document.getElementById('statusFilter').addEventListener('change', renderOrders);
 
-byId('ordersBody').addEventListener('change', (e)=>{
+document.getElementById('ordersBody').addEventListener('change', (e)=>{
   const sel = e.target.closest('.status-select');
   if (!sel) return;
-  const id = Number(sel.dataset.id);
-  setStage(id, sel.value).catch(err=>showToast('Failed: '+err.message));
+  setStage(Number(sel.dataset.id), sel.value).catch(err=>alert('Failed: '+err.message));
 });
-byId('ordersBody').addEventListener('click', (e)=>{
+document.getElementById('ordersBody').addEventListener('click', (e)=>{
   const btn = e.target.closest('button[data-act]');
   if (!btn) return;
   const id = Number(btn.dataset.id);
   const act = btn.dataset.act;
-  if (act==='send') return sendLink(id).catch(err=>showToast('Failed: '+err.message));
-  if (act==='done') return markDone(id).catch(err=>showToast('Failed: '+err.message));
-  if (act==='cancel') return cancelOrder(id).catch(err=>showToast('Failed: '+err.message));
-  if (act==='chat') return loadChat(id).catch(err=>showToast('Failed: '+err.message));
+  if (act==='send') return sendLink(id).catch(err=>alert('Failed: '+err.message));
+  if (act==='done') return markDone(id).catch(err=>alert('Failed: '+err.message));
+  if (act==='cancel') return cancelOrder(id).catch(err=>alert('Failed: '+err.message));
+  if (act==='chat') return loadChat(id).catch(err=>alert('Failed: '+err.message));
 });
 
 /* ========= INIT ========= */
 (async function init(){
-  // Early hint if outside Telegram (so the admin knows why requests fail)
-  if (!initData) {
-    showToast('Tip: open this dashboard inside Telegram for full access.');
-  }
-
   await Promise.all([
     fetchShopState().catch(()=>{}),
-    loadOrders().catch(err=>{
-      showToast(err.message);
-      // If unauthorized, tell the admin what's up
-      if (/Unauthorized/i.test(err.message)) {
-        byId('ordersEmpty').style.display='block';
-        byId('ordersEmpty').textContent = 'Unauthorized: Please open inside Telegram (Admin WebApp).';
-      }
-    })
+    loadOrders()
   ]);
-
   // Auto-refresh every 20s
-  setInterval(()=>loadOrders(false).catch(()=>{}), 20000);
+  setInterval(()=>loadOrders().catch(()=>{}), 20000);
 })();
 </script>
 </body>

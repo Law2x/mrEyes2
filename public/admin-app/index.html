@@ -35,21 +35,27 @@
   .btn.small{padding:8px 12px;border-radius:10px}
   .btn.yellow{background:#2b210b;border-color:#5a4413;color:#ffd97a}
 
-  .summary{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:14px 0 6px}
-  /* ↓ Slimmer tiles */
-  .tile{
-    background:linear-gradient(180deg,#0f1520,#0b121d);
-    border:1px solid var(--line);
-    border-radius:14px;
-    padding:10px 12px;     /* was 14px 16px */
-    min-height:68px;       /* compact height */
-    box-shadow:var(--shadow);
+  /* ---- SUMMARY TILES (−20% height) ---- */
+  .summary{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:10px 0 4px}
+  .tile{background:linear-gradient(180deg,#0f1520,#0b121d);border:1px solid var(--line);
+        border-radius:14px;padding:11px 12px;box-shadow:var(--shadow)}
+  .tile h4{
+    margin:0;color:#b8c6d8;font-weight:800;font-size:12px;
+    display:flex;align-items:center;gap:8px
   }
-  .tile h4{margin:0 0 6px 0;color:#b8c6d8} /* was 8px */
+  .tile .row{margin-top:6px}
+  .big{font-size:22px;font-weight:800} /* was 26px */
 
-  .big{font-size:26px;font-weight:800}
-  .muted{color:var(--muted)}
-  .section-title{font-weight:800;font-size:18px;margin:18px 0 10px}
+  /* compact inline filter */
+  .filter{
+    appearance:none;background:#121b2a;border:1px solid #2a364c;color:#cfd7e6;
+    font-size:12px; padding:4px 22px 4px 8px; border-radius:10px;
+    line-height:1; height:26px; margin-left:auto
+  }
+
+  .muted{color:#9aa6b2}
+  .section-title{font-weight:800;font-size:18px;margin:16px 0 10px}
+
   .card{
     background:linear-gradient(180deg,var(--panel),var(--soft)); border:1px solid var(--line);
     border-radius:var(--radius); box-shadow:var(--shadow); padding:14px;
@@ -57,44 +63,27 @@
   }
   .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
   .idpill{background:#0d1626;border:1px solid var(--line);padding:5px 10px;border-radius:999px;color:#a7b5c7;font-weight:700}
-  .badge{background:#0d1626;border:1px solid var(--line);padding:5px 10px;border-radius:999px;font-weight:700;color:#cbd5e1}
-  .badge.confirmed{border-color:#3a455c}
-  .badge.out{border-color:#3aa3ff;color:#cfeaff;background:#0d1723}
-  .badge.done{border-color:#22c55e;color:#b8f6c2;background:#0f1b12}
-  .badge.cancel{border-color:#ef4444;color:#fecaca;background:#220e12}
   .when{background:#0d1626;border:1px solid var(--line);color:#a7b5c7;border-radius:999px;padding:5px 10px}
   .title{font-weight:900;font-size:18px;margin:10px 0 6px 0}
   .list{padding-left:18px;margin:6px 0;color:#dbe3ee}
   .list li{margin:2px 0}
   .card-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
   .btn.red{background:#2b1417;border-color:#5a1e25;color:#ffc9c9}
-  .divider{height:1px;background:var(--line);margin:12px 0}
 
-  /* chat in card */
-  .chat{
-    background:#0b111b;border:1px solid var(--line);border-radius:12px;padding:10px;margin-top:10px
-  }
-  .msg-list{display:flex;flex-direction:column;gap:10px;min-height:80px;max-height:200px;overflow:auto;padding-right:6px}
+  /* chat in card (shrink message area ~20%) */
+  .chat{background:#0b111b;border:1px solid var(--line);border-radius:12px;padding:10px;margin-top:10px}
+  .msg-list{display:flex;flex-direction:column;gap:10px;min-height:64px;max-height:160px;overflow:auto;padding-right:6px} /* was 80/200 */
   .msg{display:flex}
-  /* ↓ Shorter bubbles (height via padding + tighter meta) */
-  .msg .bub{
-    max-width:85%;
-    padding:6px 10px;            /* was 10px 12px */
-    border-radius:12px;
-    border:1px solid var(--line);
-    white-space:pre-wrap;
-    line-height:1.35;            /* slightly tighter */
-  }
+  .msg .bub{max-width:85%;padding:10px 12px;border-radius:12px;border:1px solid var(--line);white-space:pre-wrap}
   .msg.customer{justify-content:flex-start}
   .msg.customer .bub{background:#141c28}
   .msg.admin{justify-content:flex-end}
   .msg.admin .bub{background:#10213a}
-  .msgmeta{font-size:10px; color:#9aa6b2; margin-bottom:2px} /* was 11px / 4px */
+  .msgmeta{font-size:11px;color:#9aa6b2;margin-bottom:4px}
   .chat-entry{display:flex;gap:8px;margin-top:8px}
-  .chat-entry textarea{flex:1;min-height:42px;resize:vertical;background:#0e1523;border:1px solid #1f2937;border-radius:10px;color:var(--text);padding:10px}
+  .chat-entry textarea{flex:1;min-height:40px;resize:vertical;background:#0e1523;border:1px solid #1f2937;border-radius:10px;color:var(--text);padding:10px}
   .empty{color:var(--muted)}
 
-  /* unauthorized banner */
   .unauth{background:#1b1210;border:1px solid #3e2a24;color:#ffd6b5;padding:12px;border-radius:12px;margin:10px 0}
 </style>
 </head>
@@ -114,23 +103,32 @@
     <!-- summary -->
     <div class="summary">
       <div class="tile">
-        <h4>Orders</h4>
+        <h4>
+          Orders
+          <select id="ordersRange" class="filter">
+            <option value="all">All</option>
+            <option value="confirmed">Order confirmed</option>
+            <option value="out_for_delivery">Out for delivery</option>
+            <option value="delivered">Delivered</option>
+          </select>
+        </h4>
         <div class="row">
           <div id="ordersCount" class="big">0</div>
-          <select id="ordersRange" class="btn small" style="margin-left:auto">
-            <option value="all">All</option>
-            <option value="today">Today</option>
-          </select>
         </div>
       </div>
+
       <div class="tile">
-        <h4>Sales</h4>
+        <h4>
+          Sales
+          <select id="salesRange" class="filter">
+            <option value="today">Today</option>
+            <option value="week">Week</option>
+            <option value="month">Month</option>
+            <option value="all">All</option>
+          </select>
+        </h4>
         <div class="row">
           <div class="big">₱<span id="salesTotal">0</span></div>
-          <select id="salesRange" class="btn small" style="margin-left:auto">
-            <option value="today">Today</option>
-            <option value="all">All time</option>
-          </select>
         </div>
       </div>
     </div>
@@ -150,15 +148,8 @@
     let initData = "";
     let insideTG = false;
 
-    if (tg && tg.initData) {
-      insideTG = true;
-      initData = tg.initData;
-      tg.ready(); tg.expand && tg.expand();
-    } else {
-      const qp = new URLSearchParams(location.search);
-      initData = qp.get("initData") || "";
-      insideTG = !!initData;
-    }
+    if (tg && tg.initData) { insideTG = true; initData = tg.initData; tg.ready(); tg.expand && tg.expand(); }
+    else { const qp = new URLSearchParams(location.search); initData = qp.get("initData") || ""; insideTG = !!initData; }
     document.getElementById("unauth").style.display = insideTG ? "none" : "block";
 
     /* ---------------- small helpers ---------------- */
@@ -171,10 +162,7 @@
     const api = async (path, method="GET", body) => {
       const res = await fetch(path, {
         method,
-        headers:{
-          "Content-Type":"application/json",
-          "X-Telegram-Init-Data": initData
-        },
+        headers:{ "Content-Type":"application/json","X-Telegram-Init-Data": initData },
         body: body? JSON.stringify(body): undefined
       });
       const j = await res.json().catch(()=>({}));
@@ -188,12 +176,6 @@
     const POLL = new Map(); // orderId -> intervalId
 
     /* ---------------- render ---------------- */
-    function badgeFor(stage){
-      if (stage === 2) return '<span class="badge done">delivered</span>';
-      if (stage === 1) return '<span class="badge out">out for delivery</span>';
-      if (stage === -1) return '<span class="badge cancel">canceled</span>';
-      return '<span class="badge confirmed">confirmed</span>';
-    }
     function itemsList(items){
       if (!items?.length) return "";
       return `<ul class="list">${items.map(i=>`<li>${esc(i.category)} — ${esc(i.amount)}`).join("")}</ul>`;
@@ -205,7 +187,6 @@
         <div class="row" style="justify-content:space-between">
           <div class="row">
             <div class="idpill">#${o.id}</div>
-            ${badgeFor(Number(o.statusStage ?? 0))}
             <div class="when">${fmt(o.createdAt)}</div>
           </div>
         </div>
@@ -245,7 +226,7 @@
 
     function render(){
       cards.innerHTML = ORDERS.map(cardHtml).join("") || `<div class="muted">No orders yet.</div>`;
-      // sales + counts
+      // summary numbers
       $("#ordersCount").textContent = String(ORDERS.length);
       const total = ORDERS.reduce((sum,o)=>{
         const items = o.items || [];
@@ -262,19 +243,10 @@
 
     /* ---------------- load data ---------------- */
     async function loadShop(){
-      try{
-        const j = await api("/api/admin/shop");
-        shopToggle.checked = !!j.open;
-      }catch{}
+      try{ const j = await api("/api/admin/shop"); shopToggle.checked = !!j.open; }catch{}
     }
     async function loadOrders(){
-      try{
-        const j = await api("/api/admin/orders");
-        ORDERS = j.orders || [];
-        render();
-      }catch(e){
-        console.error(e);
-      }
+      try{ const j = await api("/api/admin/orders"); ORDERS = j.orders || []; render(); }catch(e){ console.error(e); }
     }
 
     /* ---------------- chat ---------------- */
@@ -283,10 +255,7 @@
       try{
         const j = await api(`/api/admin/orders/${orderId}/messages`);
         const msgs = j.messages || [];
-        if (!msgs.length){
-          box.innerHTML = '<div class="empty">No messages yet.</div>';
-          return;
-        }
+        if (!msgs.length){ box.innerHTML = '<div class="empty">No messages yet.</div>'; return; }
         box.innerHTML = msgs.map(m=>{
           const who = m.sender === 'admin' ? 'admin' : 'customer';
           const when = fmt(m.created_at || m.createdAt);
@@ -298,40 +267,21 @@
                   </div>`;
         }).join("");
         box.scrollTop = box.scrollHeight;
-      }catch(e){
-        box.innerHTML = '<div class="empty">Failed to load messages.</div>';
-      }
+      }catch{ box.innerHTML = '<div class="empty">Failed to load messages.</div>'; }
     }
-
-    function startPolling(orderId){
-      stopPolling(orderId);
-      const id = setInterval(()=>loadMessages(orderId), 5000);
-      POLL.set(orderId, id);
-    }
-    function stopPolling(orderId){
-      const id = POLL.get(orderId);
-      if (id){ clearInterval(id); POLL.delete(orderId); }
-    }
+    function startPolling(orderId){ stopPolling(orderId); const id = setInterval(()=>loadMessages(orderId), 5000); POLL.set(orderId, id); }
+    function stopPolling(orderId){ const id = POLL.get(orderId); if (id){ clearInterval(id); POLL.delete(orderId); } }
 
     /* ---------------- events ---------------- */
     shopToggle.addEventListener("change", async ()=>{
-      try{
-        await api("/api/admin/shop","POST",{ open: shopToggle.checked });
-      }catch(e){
-        shopToggle.checked = !shopToggle.checked;
-      }
+      try{ await api("/api/admin/shop","POST",{ open: shopToggle.checked }); }
+      catch{ shopToggle.checked = !shopToggle.checked; }
     });
+    btnRefresh.addEventListener("click", async ()=>{ await Promise.all([loadShop(), loadOrders()]); });
 
-    btnRefresh.addEventListener("click", async ()=>{
-      await Promise.all([loadShop(), loadOrders()]);
-    });
-
-    // delegate clicks inside cards
     cards.addEventListener("click", async (ev)=>{
-      const card = ev.target.closest(".card");
-      if (!card) return;
-      const id = Number(card.dataset.id);
-      const act = ev.target.dataset.act;
+      const card = ev.target.closest(".card"); if (!card) return;
+      const id = Number(card.dataset.id); const act = ev.target.dataset.act;
 
       if (act === "toggle-chat"){
         const wrap = document.getElementById(`chat-${id}`);
@@ -341,49 +291,32 @@
         return;
       }
       if (act === "sendmsg"){
-        const ta = document.getElementById(`input-${id}`);
-        const text = ta.value.trim();
-        if (!text) return;
-        try{
-          await api(`/api/admin/orders/${id}/messages`, "POST", { message: text });
-          ta.value = "";
-          await loadMessages(id);
-        }catch(e){ alert("Failed to send message."); }
+        const ta = document.getElementById(`input-${id}`); const text = ta.value.trim(); if (!text) return;
+        try{ await api(`/api/admin/orders/${id}/messages`, "POST", { message: text }); ta.value = ""; await loadMessages(id); }
+        catch{ alert("Failed to send message."); }
         return;
       }
       if (act === "sendlink"){
-        const link = prompt("Enter delivery/tracking link:");
-        if (!link) return;
-        try{
-          await api(`/api/admin/orders/${id}/sendlink`, "POST", { link });
-          alert("Link sent.");
-          await loadOrders();
-        }catch(e){ alert("Failed to send link."); }
+        const link = prompt("Enter delivery/tracking link:"); if (!link) return;
+        try{ await api(`/api/admin/orders/${id}/sendlink`, "POST", { link }); alert("Link sent."); await loadOrders(); }
+        catch{ alert("Failed to send link."); }
         return;
       }
       if (act === "stage1"){
-        try{
-          await api(`/api/admin/orders/${id}/stage`, "POST", { stage: 1 });
-        await loadOrders();
-        }catch(e){ alert("Failed to update stage."); }
+        try{ await api(`/api/admin/orders/${id}/stage`, "POST", { stage: 1 }); await loadOrders(); }
+        catch{ alert("Failed to update stage."); }
         return;
       }
       if (act === "cancel"){
         if (!confirm("Cancel this order?")) return;
-        try{
-          await api(`/api/admin/orders/${id}/stage`, "POST", { stage: -1 });
-          await loadOrders();
-        }catch(e){ alert("Cancel failed."); }
+        try{ await api(`/api/admin/orders/${id}/stage`, "POST", { stage: -1 }); await loadOrders(); }
+        catch{ alert("Cancel failed."); }
         return;
       }
     });
 
     /* ---------------- init ---------------- */
-    (async function init(){
-      await loadShop();
-      await loadOrders();
-    })();
+    (async function init(){ await loadShop(); await loadOrders(); })();
   </script>
 </body>
 </html>
-```0

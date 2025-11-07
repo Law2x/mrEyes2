@@ -16,6 +16,11 @@ import {
   updateOrderStage,
   setDeliveryLink,
   markReceivedByChat,
+
+  // 👇 NEW: chat helpers for 2-way chat
+  latestActiveOrderByChatId,
+  createMessage,
+  listMessages,
 } from "./db.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -77,11 +82,7 @@ const PRICE_LIST = {
 // ───────── STATE ─────────
 let SHOP_OPEN = true;
 const sessions = new Map();        // chatId -> { cart, step, ... }
-const adminMessageMap = new Map(); // adminMsgId -> { customerChatId }
-// ⛔ removed: in-memory orders / nextOrderId (now DB-backed)
-// const orders = [];
-// let nextOrderId = 1;
-
+const adminMessageMap = new Map(); // adminMsgId -> { customerChatId, orderId }
 const adminState = { mode: null, deliveryOrderId: null }; // 'broadcast' | 'await_delivery_link'
 
 // ───────── EXPRESS ─────────
@@ -304,7 +305,10 @@ async function notifyAdminsNewOrder(order, from) {
   for (const adminId of ADMIN_IDS) {
     const r = await tgSendMessage(adminId, text);
     const j = await r.json().catch(() => null);
-    if (j?.ok) adminMessageMap.set(j.result.message_id, { customerChatId: from.id });
+    if (j?.ok) {
+      // 👇 map admin message so replies go to the right customer & order
+      adminMessageMap.set(j.result.message_id, { customerChatId: from.id, orderId: order.id });
+    }
     if (order.coords) await tgSendLocation(adminId, order.coords.latitude, order.coords.longitude);
     if (order.paymentProof) {
       await tgSendPhotoByFileId(
@@ -414,6 +418,39 @@ app.post("/api/admin/orders/:id/sendlink", requireAdminWebApp, async (req, res) 
       { reply_markup: { inline_keyboard: [[{ text: "📦 Mark as Received", callback_data: "order:received" }]] } }
     );
     await setDeliveryLink(id, link);
+    res.json({ ok: true });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ ok: false, error: "db_error" });
+  }
+});
+
+// ───────── 🆕 CHAT API (Admin dashboard) ─────────
+// Get messages for an order (for the customer card thread)
+app.get("/api/admin/orders/:id/messages", requireAdminWebApp, async (req, res) => {
+  const id = Number(req.params.id);
+  try {
+    const msgs = await listMessages(id, 500);
+    res.json({ ok: true, messages: msgs });
+  } catch (e) {
+    console.error(e);
+    res.status(500).json({ ok: false, error: "db_error" });
+  }
+});
+
+// Post a message from admin to customer (from the card)
+app.post("/api/admin/orders/:id/messages", requireAdminWebApp, async (req, res) => {
+  const id = Number(req.params.id);
+  const { message } = req.body || {};
+  if (!message || !message.trim()) {
+    return res.status(400).json({ ok: false, error: "empty_message" });
+  }
+  try {
+    await createMessage(id, "admin", message.trim());
+    const o = await getOrderById(id);
+    if (o?.customerChatId) {
+      await tgSendMessage(o.customerChatId, `💬 *Admin*: ${message}`, { parse_mode: "Markdown" });
+    }
     res.json({ ok: true });
   } catch (e) {
     console.error(e);
@@ -635,11 +672,15 @@ async function handleMessage(msg) {
   const text   = (msg.text || "").trim();
   const s      = getSession(chatId);
 
-  // Admin reply bridge (replying to a forwarded customer message)
+  // Admin reply bridge (replying to a forwarded customer message / order notice)
   if (isAdmin(chatId) && msg.reply_to_message) {
     const info = adminMessageMap.get(msg.reply_to_message.message_id);
     if (!info) return tgSendMessage(chatId, "⚠️ Cannot map reply to a customer.");
     await tgSendMessage(info.customerChatId, `🧑‍💼 Admin:\n${text}`);
+    // 📝 Save admin message to thread if we know the order
+    if (info.orderId) {
+      try { await createMessage(info.orderId, "admin", text); } catch {}
+    }
     if (/(grab|delivery|courier|tracking|https?:\/\/\S+)/i.test(text)) {
       await tgSendMessage(
         info.customerChatId,
@@ -731,13 +772,13 @@ async function handleMessage(msg) {
     const termsText = `
 👋 Welcome to *Yelo🟡Spot*!
 
-❄️ Chill deals. Fast service.  
+❄️ Chill deals. Fast service. 
 Before we begin, please read and agree to our Terms & Conditions:
 
-⚠️ *Terms & Conditions*  
-• You confirm that you are *18 years old and above*.  
-• You understand and accept full responsibility for your order.  
-• No refunds once the order has been confirmed.  
+⚠️ *Terms & Conditions*
+• You confirm that you are *18 years old and above*.
+• You understand and accept full responsibility for your order.
+• No refunds once the order has been confirmed.
 • Please use responsibly and comply with all applicable laws.
 
 Tap below to proceed.
@@ -777,6 +818,30 @@ Tap below to proceed.
       },
     });
     return;
+  }
+
+  // 🔵 Customer free-text → attach to latest active order thread
+  if (!isAdmin(chatId) && text && !text.startsWith("/")) {
+    try {
+      const o = await latestActiveOrderByChatId(chatId);
+      if (o) {
+        // store message
+        await createMessage(o.id, "customer", text);
+        // notify admins with mapping so they can reply in Telegram
+        for (const adminId of ADMIN_IDS) {
+          const r = await tgSendMessage(
+            adminId,
+            `💬 New message on *Order #${o.id}* from ${s.name || chatId}:\n${text}`,
+            { parse_mode: "Markdown" }
+          );
+          const j = await r.json().catch(()=>null);
+          if (j?.ok) adminMessageMap.set(j.result.message_id, { customerChatId: chatId, orderId: o.id });
+        }
+        return;
+      }
+    } catch (e) {
+      console.error("chat capture failed:", e);
+    }
   }
 
   // Fallback

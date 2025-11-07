@@ -16,6 +16,11 @@ import {
   updateOrderStage,
   setDeliveryLink,
   markReceivedByChat,
+
+  // NEW chat helpers
+  latestActiveOrderByChatId,
+  createMessage,
+  listMessages,
 } from "./db.js";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -44,7 +49,7 @@ const PRICE_LIST = {
     { label: "₱700 — 0.042",   callback: "amt:₱700 — 0.042" },
     { label: "₱1,000 — 0.056", callback: "amt:₱1,000 — 0.056" },
     { label: "₱2,000 — Half",  callback: "amt:₱2,000 — Half" },
-    { label: "₱3,800 — G",     callback: "amt:₱3,800 — 8" },
+    { label: "₱3,800 — 8",     callback: "amt:₱3,800 — 8" },
   ],
   syringe: [
     { label: "₱500 — 12 units",   callback: "amt:₱500 — 12 units" },
@@ -78,10 +83,8 @@ const PRICE_LIST = {
 let SHOP_OPEN = true;
 const sessions = new Map();        // chatId -> { cart, step, ... }
 const adminMessageMap = new Map(); // adminMsgId -> { customerChatId }
-// ⛔ removed: in-memory orders / nextOrderId (now DB-backed)
-// const orders = [];
-// let nextOrderId = 1;
 
+// In-memory admin state for chat-based actions
 const adminState = { mode: null, deliveryOrderId: null }; // 'broadcast' | 'await_delivery_link'
 
 // ───────── EXPRESS ─────────
@@ -421,27 +424,36 @@ app.post("/api/admin/orders/:id/sendlink", requireAdminWebApp, async (req, res) 
   }
 });
 
-// ───────── SHOP OPEN/CLOSE API (for Admin Mini-App) ─────────
-app.get("/api/admin/shop", requireAdminWebApp, (req, res) => {
+// ───────── CHAT API (Admin dashboard) ─────────
+// Get messages for an order
+app.get("/api/admin/orders/:id/messages", requireAdminWebApp, async (req, res) => {
+  const id = Number(req.params.id);
   try {
-    res.json({ ok: true, open: SHOP_OPEN });
+    const msgs = await listMessages(id, 500);
+    res.json({ ok: true, messages: msgs });
   } catch (e) {
     console.error(e);
-    res.status(500).json({ ok: false, error: "shop_state_error" });
+    res.status(500).json({ ok: false, error: "db_error" });
   }
 });
 
-app.post("/api/admin/shop", requireAdminWebApp, (req, res) => {
+// Post a message from admin to customer
+app.post("/api/admin/orders/:id/messages", requireAdminWebApp, async (req, res) => {
+  const id = Number(req.params.id);
+  const { message } = req.body || {};
+  if (!message || !message.trim()) {
+    return res.status(400).json({ ok: false, error: "empty_message" });
+  }
   try {
-    const { open } = req.body || {};
-    if (typeof open !== "boolean") {
-      return res.status(400).json({ ok: false, error: "invalid_open_flag" });
+    await createMessage(id, "admin", message.trim());
+    const o = await getOrderById(id);
+    if (o?.customerChatId) {
+      await tgSendMessage(o.customerChatId, `💬 *Admin*: ${message}`, { parse_mode: "Markdown" });
     }
-    SHOP_OPEN = open;
-    res.json({ ok: true, open: SHOP_OPEN });
+    res.json({ ok: true });
   } catch (e) {
     console.error(e);
-    res.status(500).json({ ok: false, error: "toggle_failed" });
+    res.status(500).json({ ok: false, error: "db_error" });
   }
 });
 
@@ -722,61 +734,25 @@ async function handleMessage(msg) {
     }
   }
 
-  // Start (Terms & Conditions gate + Yelo🟡Spot welcome)
-  if (text === "/start" || text === "/restart") {
-    if (!SHOP_OPEN) return tgSendMessage(chatId, "🏪 The shop is closed.");
-    const s0 = { lastActive: Date.now(), cart: [], step: "terms" };
-    sessions.set(chatId, s0);
-
-    const termsText = `
-👋 Welcome to *Yelo🟡Spot*!
-
-❄️ Chill deals. Fast service.  
-Before we begin, please read and agree to our Terms & Conditions:
-
-⚠️ *Terms & Conditions*  
-• You confirm that you are *18 years old and above*.  
-• You understand and accept full responsibility for your order.  
-• No refunds once the order has been confirmed.  
-• Please use responsibly and comply with all applicable laws.
-
-Tap below to proceed.
-`.trim();
-
-    await tgSendMessage(chatId, termsText, {
-      parse_mode: "Markdown",
-      reply_markup: {
-        inline_keyboard: [
-          [
-            { text: "✅ I Agree (18+)", callback_data: "terms:agree" },
-            { text: "❌ I Disagree",    callback_data: "terms:decline" },
-          ],
-          [{ text: "🧑‍💼 Contact Admin", callback_data: "contact:admin" }]
-        ],
-      },
-    });
-    return;
-  }
-
-  // Contact Admin typing mode
-  if (s.step === "contact_admin") {
-    if (!text) return;
-    await forwardCustomerMessageToAdmins(chatId, text);
-    s.step = "ordering";
-    return;
-  }
-
-  // Name → phone
-  if (s.step === "ask_name") {
-    s.name = text;
-    s.step = "request_phone";
-    await tgSendMessage(chatId, "📱 Please share your phone number:", {
-      reply_markup: {
-        keyboard: [[{ text: "📱 Share Phone", request_contact: true }]],
-        resize_keyboard: true, one_time_keyboard: true,
-      },
-    });
-    return;
+  // 🔵 Customer free-text → chat message on latest active order
+  if (!isAdmin(chatId) && text && !text.startsWith("/")) {
+    try {
+      const o = await latestActiveOrderByChatId(chatId);
+      if (o) {
+        await createMessage(o.id, "customer", text);
+        // Ping admins
+        for (const adminId of ADMIN_IDS) {
+          await tgSendMessage(
+            adminId,
+            `💬 New message on *Order #${o.id}* from ${s.name || chatId}:\n${text}`,
+            { parse_mode: "Markdown" }
+          );
+        }
+        return;
+      }
+    } catch (e) {
+      console.error("chat capture failed:", e);
+    }
   }
 
   // Fallback

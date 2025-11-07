@@ -1,588 +1,419 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta
-    name="viewport"
-    content="width=device-width, initial-scale=1, maximum-scale=1"
-  />
-  <title>Yelo🟡Spot — Admin Dashboard</title>
-  <style>
-    :root{
-      --bg:#0f1115;
-      --panel:#151922;
-      --panel-2:#1b2130;
-      --muted:#8892a6;
-      --text:#e8edf7;
-      --brand:#ffd44d;
-      --brand-ink:#1c1600;
-      --ok:#35c06d;
-      --warn:#ffb020;
-      --bad:#ff5d5d;
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Yelo🟡Spot — Admin Dashboard</title>
+<style>
+  :root{
+    --bg:#0b0b0f;
+    --panel:#12131a;
+    --panel-2:#141625;
+    --muted:#8b90a5;
+    --text:#f6f7fb;
+    --accent:#ffd000;
+    --good:#29c770;
+    --warn:#ffb020;
+    --bad:#ff5d5d;
+    --line:#1e2030;
+    --pill:#1b1d2a;
+    --btn:#1a1c28;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0;background:radial-gradient(1200px 600px at -10% -10%, #152035 0%, transparent 60%),
+    radial-gradient(900px 900px at 110% -20%, #1a1435 0%, transparent 55%),
+    var(--bg); color:var(--text); font:14px/1.4 system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+  }
+  .wrap{max-width:1100px;margin:20px auto 80px;padding:0 16px}
 
-      /* sizing */
-      --container: 840px;                  /* “fixed-feel” max width */
-      --header-pad: clamp(8px,2vw,14px);
-      --card-radius: 18px;
-      --card-pad: 16px;
-      --chip-h: 34px;
-      --btn-h: 36px;
+  /* Header */
+  .hdr{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:center;margin-bottom:16px}
+  .brand{display:flex;flex-direction:column;gap:4px;min-width:0}
+  .brand .title{font-weight:800;letter-spacing:.5px;line-height:1.1;font-size:clamp(22px,3.4vw,34px);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .brand .subtitle{color:var(--muted);font-size:12px;opacity:.9}
+  .hdr-ctrls{display:flex;gap:8px;align-items:center}
+  .tiny-btn{
+    padding:6px 10px;border:1px solid var(--line);background:var(--btn);
+    border-radius:10px;color:var(--text);cursor:pointer;font-weight:700;font-size:12px;user-select:none
+  }
+  .tiny-btn:hover{filter:brightness(1.05)}
+  .toggle{
+    display:flex;align-items:center;gap:8px;background:var(--btn);
+    border:1px solid var(--line);padding:6px 10px;border-radius:10px;cursor:pointer;
+    font-size:12px;font-weight:800
+  }
+  .dot{width:10px;height:10px;border-radius:999px;background:var(--bad);box-shadow:0 0 0 2px #0004}
+  .dot.on{background:var(--good)}
 
-      /* toggle / refresh shared pill size */
-      --pill-h: 38px;
-      --pill-pad-x: 14px;
-      --pill-radius: 999px;
-    }
+  /* KPIs one line */
+  .kpis{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin:8px 0 16px}
+  .kpi{
+    background:linear-gradient(180deg,var(--panel),var(--panel-2));
+    border:1px solid var(--line);border-radius:16px;padding:12px 14px;
+    display:flex;align-items:center;justify-content:space-between;min-height:66px
+  }
+  .kpi h3{margin:0;font-size:12px;color:var(--muted);font-weight:800}
+  .kpi .val{font-size:22px;font-weight:900;letter-spacing:.3px}
+  .filter{display:flex;gap:8px;align-items:center;margin-top:8px}
+  .select{background:var(--pill);border:1px solid var(--line);color:var(--text);border-radius:10px;padding:6px 10px;font-weight:700;font-size:12px}
 
-    * { box-sizing: border-box; }
-    html,body{
-      margin:0; padding:0;
-      background: var(--bg);
-      color: var(--text);
-      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Apple Color Emoji","Segoe UI Emoji";
-    }
+  /* Main grid */
+  .grid{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:14px}
+  .card{background:linear-gradient(180deg,var(--panel),var(--panel-2));border:1px solid var(--line);border-radius:18px;padding:12px}
+  .card h2{margin:2px 0 8px 0;font-size:14px;color:var(--muted);font-weight:800;letter-spacing:.2px}
 
-    .wrap{
-      max-width: var(--container);
-      margin: 0 auto;
-      padding: 8px 14px 28px;
-    }
+  table{width:100%;border-collapse:separate;border-spacing:0 8px}
+  thead th{text-align:left;color:var(--muted);font-size:11px;font-weight:800;padding:0 10px}
+  tbody tr{background:var(--pill);border:1px solid var(--line)}
+  tbody td{padding:10px;vertical-align:middle;font-size:13px}
+  .pill{background:#10121c;border:1px solid var(--line);padding:4px 8px;border-radius:999px;font-size:11px;color:var(--muted);display:inline-block}
+  .items{max-width:260px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:#dfe3fb}
+  .row-actions{display:flex;gap:6px;flex-wrap:wrap}
+  .btn{padding:6px 10px;border:1px solid var(--line);background:#10121c;border-radius:10px;color:var(--text);font-size:12px;font-weight:700;cursor:pointer}
+  .btn:hover{filter:brightness(1.07)}
+  .btn.bad{border-color:#442024;background:#231216;color:#ff9c9c}
+  .btn.good{border-color:#1f3b2c;background:#14271e;color:#98f0c0}
+  .btn.ghost{background:transparent}
+  .btn:disabled{opacity:.45;cursor:not-allowed}
+  .status-select{background:#10121c;border:1px solid var(--line);color:var(--text);padding:6px 8px;border-radius:10px;font-size:12px;font-weight:700}
 
-    /* HEADER */
-    .header{
-      display:flex;
-      align-items:center;
-      justify-content:space-between;
-      gap:12px;
-      padding: var(--header-pad) 0;
-      border-bottom: 1px solid rgba(255,255,255,0.06);
-      margin-bottom:12px;
-    }
-    .brand{
-      display:flex; flex-direction:column;
-      gap:4px; min-width:0;
-    }
-    .brand .title{
-      font-weight:800;
-      letter-spacing:.2px;
-      font-size: clamp(22px, 4.8vw, 30px);
-      display:flex; align-items:center; gap:8px;
-      white-space:nowrap;
-    }
-    .brand .subtitle{
-      font-size: 13px;
-      color: var(--muted);
-    }
+  /* Chat side */
+  .chat{position:sticky;top:12px;display:flex;flex-direction:column;gap:8px;height:calc(100vh - 160px)}
+  .chat .messages{flex:1;overflow:auto;border:1px solid var(--line);border-radius:14px;padding:10px;background:#0e1020}
+  .msg{margin:8px 0;max-width:85%}
+  .msg .b{padding:8px 10px;border-radius:12px;border:1px solid var(--line)}
+  .msg.admin .b{background:#121f18;border-color:#1f3b2c}
+  .msg.customer .b{background:#1a1628;border-color:#37245a}
+  .msg small{display:block;color:var(--muted);margin-top:4px}
+  .compose{display:flex;gap:8px}
+  .compose input{flex:1;background:var(--pill);border:1px solid var(--line);color:var(--text);border-radius:12px;padding:10px;font-size:13px}
+  .compose button{white-space:nowrap}
+  .messages::-webkit-scrollbar{height:10px;width:8px}
+  .messages::-webkit-scrollbar-thumb{background:#2a2d46;border-radius:8px}
 
-    .header-ctrls{
-      display:flex; align-items:center; gap:10px;
-      flex: 0 0 auto;
-    }
+  .doneMark{display:inline-flex;align-items:center;gap:6px;font-weight:900;color:#9df2c9}
+  .doneMark svg{width:16px;height:16px}
 
-    /* pill base (toggle + refresh share size) */
-    .pill{
-      height: var(--pill-h);
-      padding: 0 var(--pill-pad-x);
-      border-radius: var(--pill-radius);
-      background: var(--panel);
-      display:flex; align-items:center; gap:10px;
-      border: 1px solid rgba(255,255,255,0.06);
-      box-shadow: 0 4px 14px rgba(0,0,0,.25);
-      user-select:none;
-    }
-    .pill .label{
-      font-weight:700; font-size:14px;
-    }
-
-    /* toggle */
-    .toggle{
-      position:relative; width:44px; height:24px;
-      background: #2a3142;
-      border-radius:999px; cursor:pointer; flex:0 0 auto;
-    }
-    .toggle .knob{
-      position:absolute; top:3px; left:3px;
-      width:18px; height:18px; border-radius:50%;
-      background:#dfe7f5; transition: all .18s ease;
-      box-shadow: 0 1px 0 rgba(0,0,0,.2), 0 3px 8px rgba(0,0,0,.25) inset;
-    }
-    .toggle.on{ background:#214c33; }
-    .toggle.on .knob{ left:23px; background:#35c06d; }
-
-    /* refresh */
-    .btn-refresh{
-      background: linear-gradient(180deg, #ffd54d, #ffcd1b);
-      color: var(--brand-ink);
-      font-weight:800;
-      border:none; outline:none; cursor:pointer;
-      border-radius: var(--pill-radius);
-      height: var(--pill-h);
-      padding: 0 var(--pill-pad-x);
-      display:flex; align-items:center; gap:8px;
-      box-shadow: 0 6px 18px rgba(255,205,27,.25);
-    }
-
-    /* KPI ROW (always one line) */
-    .kpis{
-      display:grid; grid-template-columns: 1fr 1fr;
-      gap: 12px; margin-top: 14px;
-    }
-    .card{
-      background: var(--panel);
-      border: 1px solid rgba(255,255,255,0.06);
-      border-radius: var(--card-radius);
-      padding: var(--card-pad);
-      box-shadow: 0 10px 24px rgba(0,0,0,.28);
-      min-width:0;
-    }
-    .k-card .row{
-      display:flex; align-items:center; justify-content:space-between; gap:8px;
-      margin-bottom: 8px;
-    }
-    .k-label{ font-size:18px; font-weight:800; }
-    .chip{
-      height: var(--chip-h); padding:0 12px;
-      border-radius: 10px; display:flex; align-items:center; gap:8px;
-      background: var(--panel-2); color:#cfd6e6; font-weight:700; font-size:14px;
-      border: 1px solid rgba(255,255,255,0.06);
-    }
-    .k-value{
-      font-size: clamp(34px, 6.5vw, 44px);
-      line-height:1; font-weight:900; letter-spacing:.4px;
-      padding-top:6px;
-    }
-
-    /* SECTION TITLE */
-    .section-title{
-      font-size: 22px; font-weight:900; margin: 18px 0 8px;
-    }
-
-    /* ORDERS LIST */
-    .orders{ display:flex; flex-direction:column; gap:12px; }
-    .order{
-      background: var(--panel); border:1px solid rgba(255,255,255,0.06);
-      border-radius: var(--card-radius); padding:16px; position:relative;
-      box-shadow: 0 10px 24px rgba(0,0,0,.28);
-    }
-    .order-top{
-      display:flex; flex-wrap:wrap; gap:8px 12px; align-items:center; justify-content:space-between;
-      margin-bottom: 8px;
-    }
-    .badges{ display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
-    .badge{
-      height:28px; border-radius: 999px; padding:0 12px; display:flex; align-items:center;
-      font-weight:800; letter-spacing:.3px; font-size:12px; text-transform:uppercase;
-      background:#2b3346; color:#cbd3e6; border:1px solid rgba(255,255,255,.06);
-    }
-    .badge.ok{ background:#153923; color:#9ee7b9; border-color:#1a5a38; }
-    .badge.warn{ background:#3a320f; color:#ffd77c; border-color:#5f4e11; }
-    .badge.bad{ background:#3b1717; color:#ff9b9b; border-color:#6a2626; }
-
-    .order-title{
-      font-size: 18px; font-weight:900; margin: 2px 0 2px;
-      word-break: break-word;
-    }
-    .order-sub{ color: var(--muted); font-size:14px; margin-bottom:8px; }
-    .items{ margin:10px 0 12px; color:#dfe6f9; font-size:15px; }
-    .items .dot{ color:#5b6882; }
-
-    .actions{
-      display:flex; flex-wrap:wrap; gap:10px;
-    }
-    .btn{
-      height: var(--btn-h);
-      padding: 0 14px; border-radius: 12px;
-      border:1px solid rgba(255,255,255,.08);
-      background:#22293a; color:#dfe6f9; font-weight:800; cursor:pointer;
-    }
-    .btn.primary{ background:#28324a; }
-    .btn.ok{ background:#193e2c; color:#9ee7b9; border-color:#275a41; }
-    .btn.bad{ background:#3a1c1c; color:#ffc9c9; border-color:#5a2a2a; }
-    .btn:disabled{ opacity:.5; cursor:not-allowed; }
-
-    /* delivered overlay */
-    .delivered-mark{
-      position:absolute; right:14px; bottom:14px;
-      display:flex; align-items:center; gap:8px; color:#a9f0c7;
-      font-weight:900;
-    }
-    .delivered-mark svg{ width:24px; height:24px; }
-
-    /* MODAL (simple) */
-    .modal-scrim{
-      position:fixed; inset:0; background:rgba(0,0,0,.5); display:none;
-      align-items:center; justify-content:center; z-index:10;
-    }
-    .modal{
-      width:min(92vw, 480px); background:#0f1218; border:1px solid rgba(255,255,255,.08);
-      border-radius:18px; padding:18px;
-      box-shadow: 0 18px 44px rgba(0,0,0,.4);
-    }
-    .modal h3{ margin:0 0 12px; }
-    .modal p{ color:#c3cbe2; }
-    .modal .row{ display:flex; gap:10px; margin-top:12px; }
-    .field{
-      width:100%; height:40px; border-radius:10px; border:1px solid rgba(255,255,255,.1);
-      background:#1a2030; color:#e9efff; padding:0 12px; outline:none;
-    }
-
-    /* make sure there’s NO horizontal scroll */
-    body { overflow-x:hidden; }
-  </style>
-  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  @media (max-width:720px){.grid{grid-template-columns:1fr}.chat{position:relative;height:auto}}
+</style>
 </head>
 <body>
-  <div class="wrap">
-    <!-- Header -->
-    <div class="header">
-      <div class="brand">
-        <div class="title">Yelo🟡Spot</div>
-        <div class="subtitle">Admin Dashboard</div>
-      </div>
-
-      <div class="header-ctrls">
-        <div id="shopPill" class="pill">
-          <div class="label">Shop</div>
-          <div id="shopToggle" class="toggle"><div class="knob"></div></div>
-        </div>
-
-        <button id="btnRefresh" class="btn-refresh">
-          <span>⟳</span> <span>Refresh</span>
-        </button>
-      </div>
+<div class="wrap">
+  <!-- Header -->
+  <div class="hdr">
+    <div class="brand">
+      <div class="title">Yelo🟡Spot</div>
+      <div class="subtitle">Admin Dashboard</div>
     </div>
-
-    <!-- KPI row -->
-    <div class="kpis">
-      <!-- Orders -->
-      <div class="card k-card" id="ordersCard">
-        <div class="row">
-          <div class="k-label">Orders</div>
-          <select id="ordersFilter" class="chip" aria-label="Orders filter">
-            <option value="all">All</option>
-            <option value="confirmed">Order confirmed</option>
-            <option value="out_for_delivery">Out for delivery</option>
-            <option value="completed">Delivered</option>
-            <option value="canceled">Canceled</option>
-          </select>
-        </div>
-        <div class="k-value" id="ordersCount">0</div>
-      </div>
-
-      <!-- Sales -->
-      <div class="card k-card" id="salesCard">
-        <div class="row">
-          <div class="k-label">Sales</div>
-          <select id="salesTimeline" class="chip" aria-label="Sales timeline">
-            <option value="today">Today</option>
-            <option value="week">Week</option>
-            <option value="month">Month</option>
-            <option value="all">All time</option>
-          </select>
-        </div>
-        <div class="k-value" id="salesValue">₱0</div>
-      </div>
-    </div>
-
-    <div class="section-title">All orders</div>
-    <div id="ordersList" class="orders"></div>
-  </div>
-
-  <!-- Simple modal -->
-  <div id="scrim" class="modal-scrim">
-    <div class="modal" id="modalBox">
-      <h3 id="modalTitle">Yelo🟡Spot</h3>
-      <p id="modalText">Message…</p>
-      <input id="modalInput" class="field" placeholder="Paste link…" style="display:none;">
-      <div class="row">
-        <button id="modalOk" class="btn ok">OK</button>
-        <button id="modalCancel" class="btn">Close</button>
-      </div>
+    <div class="hdr-ctrls">
+      <button id="shopToggle" class="toggle" title="Open / Close Shop"><span id="shopDot" class="dot"></span><span id="shopLabel">Shop: …</span></button>
+      <button id="refreshBtn" class="tiny-btn" title="Refresh">Refresh</button>
     </div>
   </div>
+
+  <!-- KPIs -->
+  <div class="kpis">
+    <div class="kpi">
+      <div>
+        <h3>Orders</h3>
+        <div class="val" id="ordersCount">0</div>
+      </div>
+      <div class="filter">
+        <label class="pill" for="statusFilter">Timeline</label>
+        <select id="statusFilter" class="select">
+          <option value="all">All</option>
+          <option value="paid">Confirmed</option>
+          <option value="preparing">Preparing</option>
+          <option value="out_for_delivery">Out for delivery</option>
+          <option value="completed">Delivered</option>
+          <option value="canceled">Canceled</option>
+        </select>
+      </div>
+    </div>
+    <div class="kpi">
+      <div>
+        <h3>Sales (₱)</h3>
+        <div class="val" id="salesTotal">0</div>
+      </div>
+      <span class="pill" id="salesRange">All time</span>
+    </div>
+  </div>
+
+  <div class="grid">
+    <!-- Orders -->
+    <div class="card">
+      <h2>Recent Orders</h2>
+      <div id="ordersError" class="pill" style="display:none;margin:6px 0;"></div>
+      <div style="overflow:auto;">
+        <table>
+          <thead>
+            <tr>
+              <th style="width:80px">Order</th>
+              <th style="width:140px">Created</th>
+              <th style="width:160px">Customer</th>
+              <th>Items</th>
+              <th style="width:160px">Stage</th>
+              <th style="width:260px">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="ordersBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Chat -->
+    <div class="card chat">
+      <h2>Chat</h2>
+      <div id="chatHead" class="pill">Select an order to view messages</div>
+      <div id="messages" class="messages"></div>
+      <div class="compose">
+        <input id="msgInput" type="text" placeholder="Type a message to customer…" disabled />
+        <button id="sendBtn" class="btn good" disabled>Send</button>
+      </div>
+    </div>
+  </div>
+</div>
 
 <script>
-/* -------------------- TELEGRAM AUTH -------------------- */
-function initTelegram(){
-  const tg = window.Telegram && window.Telegram.WebApp;
-  if(!tg) return null;
-  try { tg.ready(); tg.expand?.(); } catch {}
-  return tg;
-}
-function authHeaders(){
-  const h = { "Content-Type": "application/json" };
-  const tg = window.Telegram?.WebApp;
-  const initData = tg?.initData || (tg?.initDataUnsafe?.query_id ? tg.initData : "");
-  if (initData) h["X-Telegram-Init-Data"] = initData;
+/* ========= TELEGRAM WEBAPP AUTH ========= */
+const tg = window.Telegram && window.Telegram.WebApp ? window.Telegram.WebApp : null;
+try { tg && tg.expand(); } catch {}
+// read from Telegram or URL (?initData=...)
+const initData = tg ? tg.initData : (new URL(location.href).searchParams.get('initData') || '');
 
-  // optional dev-secret fallback for testing in a normal browser
-  const sp = new URLSearchParams(location.search);
-  const devSecret = sp.get("secret") || localStorage.getItem("devSecret");
-  if (sp.get("secret")) localStorage.setItem("devSecret", sp.get("secret"));
-  if (devSecret) h["X-Dev-Admin-Secret"] = devSecret;
+/* ========= ROBUST API HELPER =========
+   Sends initData via header + query + (for POST) body to survive proxies. */
+async function api(path, opts = {}){
+  const hasQuery = path.includes('?');
+  const url = `${path}${hasQuery ? '&' : '?'}initData=${encodeURIComponent(initData || '')}`;
 
-  return h;
-}
+  const method = (opts.method || 'GET').toUpperCase();
+  let body = opts.body;
+  if (method !== 'GET' && typeof body === 'string') {
+    try {
+      const obj = JSON.parse(body || '{}');
+      if (!obj.initData) obj.initData = initData || '';
+      body = JSON.stringify(obj);
+    } catch { /* leave as is */ }
+  }
 
-/* -------------------- UTIL -------------------- */
-const fmtPeso = v => "₱" + (Math.round(v).toLocaleString());
-const byStageText = s =>
-  s === -1 ? "canceled" :
-  s ===  0 ? "confirmed" :
-  s ===  1 ? "out_for_delivery" :
-  s ===  2 ? "completed" : String(s);
-
-function parseItemAmountToNumber(txt){
-  // looks for "₱" followed by number (with commas)
-  const m = (txt || "").match(/₱\s*([\d,]+)/);
-  return m ? Number(m[1].replace(/,/g,"")) : 0;
-}
-function sumOrderItems(items){
-  if(!Array.isArray(items)) return 0;
-  return items.reduce((sum,i)=> sum + parseItemAmountToNumber(i.amount || i.label || ""), 0);
-}
-function formatDateTime(iso){
-  try{ return new Date(iso).toLocaleString(); } catch { return iso; }
-}
-
-/* -------------------- API -------------------- */
-async function apiGet(url){
-  const r = await fetch(url, { headers: authHeaders() });
-  if(!r.ok) throw new Error(`HTTP ${r.status}`);
-  return r.json();
-}
-async function apiPost(url, body){
-  const r = await fetch(url, {
-    method:"POST",
-    headers: authHeaders(),
-    body: JSON.stringify(body || {})
+  const res = await fetch(url, {
+    ...opts,
+    body,
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Telegram-Init-Data': initData || '',
+      ...(opts.headers||{})
+    },
+    credentials: 'include'
   });
-  if(!r.ok) throw new Error(`HTTP ${r.status}`);
-  return r.json();
+
+  if (!res.ok){
+    let msg = `HTTP ${res.status}`;
+    try { const j = await res.json(); msg = j.error || JSON.stringify(j); } catch {}
+    throw new Error(msg);
+  }
+  return res.json();
 }
 
-/* -------------------- STATE -------------------- */
+/* ========= HELPERS ========= */
+const peso = v => Number(v||0).toLocaleString('en-PH',{maximumFractionDigits:0});
+function escapeHtml(s){return s.replace(/[&<>"]/g,c=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c]))}
+
+/* ========= STATE ========= */
 let ORDERS = [];
-let SHOP_OPEN = true;
+let CURRENT_ORDER_ID = null;
 
-/* -------------------- RENDER -------------------- */
-const elOrdersCount = document.getElementById("ordersCount");
-const elSalesValue  = document.getElementById("salesValue");
-const elOrdersList  = document.getElementById("ordersList");
-const elOrdersFilter= document.getElementById("ordersFilter");
-const elSalesTimeline = document.getElementById("salesTimeline");
-const elShopToggle  = document.getElementById("shopToggle");
-const elBtnRefresh  = document.getElementById("btnRefresh");
-
-/* modal */
-const scrim = document.getElementById("scrim");
-const modalText = document.getElementById("modalText");
-const modalInput = document.getElementById("modalInput");
-const modalOk = document.getElementById("modalOk");
-const modalCancel = document.getElementById("modalCancel");
-function showAlert(text){
-  modalText.textContent = text;
-  modalInput.style.display = "none";
-  scrim.style.display = "flex";
-  modalOk.onclick = ()=> (scrim.style.display="none");
-  modalCancel.onclick = ()=> (scrim.style.display="none");
+/* ========= SHOP ========= */
+async function fetchShopState(){
+  try{
+    const r = await fetch('/health').then(r=>r.json());
+    setShopUI(!!r.shop_open);
+  }catch{ setShopUI(false); }
 }
-function promptLink(title, placeholder, onOk){
-  document.getElementById("modalTitle").textContent = "Yelo🟡Spot";
-  modalText.textContent = title;
-  modalInput.value = "";
-  modalInput.placeholder = placeholder || "Paste link…";
-  modalInput.style.display = "block";
-  scrim.style.display = "flex";
-  modalOk.onclick = ()=>{
-    const v = modalInput.value.trim();
-    if(!v) return;
-    scrim.style.display = "none";
-    onOk(v);
-  };
-  modalCancel.onclick = ()=> (scrim.style.display="none");
+function setShopUI(open){
+  document.getElementById('shopDot').classList.toggle('on', open);
+  document.getElementById('shopLabel').textContent = open ? 'Shop: OPEN' : 'Shop: CLOSED';
+  document.getElementById('shopToggle').dataset.open = open ? '1' : '0';
+}
+async function toggleShop(){
+  const willOpen = document.getElementById('shopToggle').dataset.open !== '1';
+  try { await api('/api/admin/shop', { method:'POST', body: JSON.stringify({ open: willOpen }) }); }
+  catch(e){ console.warn('Shop toggle API not found; UI-only flip.', e.message); }
+  setShopUI(willOpen);
 }
 
-/* toggle UI */
-function setToggleUI(on){
-  SHOP_OPEN = !!on;
-  elShopToggle.classList.toggle("on", !!on);
+/* ========= ORDERS ========= */
+function matchFilter(o, val){
+  if (val==='all') return true;
+  if (val==='preparing') return (o.status==='paid' && (o.statusStage===0 || o.statusStage==null));
+  return o.status===val;
 }
-
-/* cards */
-function applyKpi(){
-  // Orders count by filter
-  const f = elOrdersFilter.value; // all | confirmed | out_for_delivery | completed | canceled
-  const filtered = f === "all" ? ORDERS : ORDERS.filter(o => o.status === f || byStageText(o.statusStage) === f);
-  elOrdersCount.textContent = String(filtered.length);
-
-  // Sales sum by timeline over COMPLETED only
-  const now = Date.now();
-  const pick = {
-    today:   (d)=> new Date(d).toDateString() === new Date().toDateString(),
-    week:    (d)=> (now - new Date(d).getTime()) <= 7*864e5,
-    month:   (d)=> (now - new Date(d).getTime()) <= 30*864e5,
-    all:     (_)=> true,
-  }[elSalesTimeline.value || "today"];
-
-  const sales = ORDERS
-    .filter(o => (o.status === "completed" || o.statusStage === 2) && pick(o.createdAt))
-    .reduce((sum,o)=> sum + sumOrderItems(o.items), 0);
-
-  elSalesValue.textContent = fmtPeso(sales);
+function calcPriceFromItems(items){
+  let sum = 0;
+  for (const it of (items||[])){
+    const m = (it.amount||'').match(/₱\s*([\d,]+)/);
+    if (m) sum += Number(m[1].replace(/,/g,''));
+  }
+  return sum;
 }
-
 function renderOrders(){
-  elOrdersList.innerHTML = "";
-  const f = elOrdersFilter.value;
-  const list = f === "all" ? ORDERS : ORDERS.filter(o => o.status === f || byStageText(o.statusStage) === f);
+  const body = document.getElementById('ordersBody');
+  body.innerHTML = '';
+  const rows = ORDERS.filter(o=>matchFilter(o, document.getElementById('statusFilter').value));
 
-  if(!list.length){
-    const empty = document.createElement("div");
-    empty.style.color = "var(--muted)";
-    empty.textContent = "— No orders —";
-    elOrdersList.appendChild(empty);
-    return;
+  document.getElementById('ordersCount').textContent = rows.length.toString();
+
+  let total = 0; for (const o of rows){ total += calcPriceFromItems(o.items); }
+  document.getElementById('salesTotal').textContent = peso(total);
+
+  for (const o of rows){
+    const tr = document.createElement('tr');
+    const disabled = (o.status==='completed'||o.status==='canceled');
+    const created = o.createdAt ? new Date(o.createdAt) : null;
+    const itemsTxt = (o.items||[]).map(x=>`${x.category} — ${x.amount}`).join(', ');
+    tr.innerHTML = `
+      <td><span class="pill">#${o.id}</span></td>
+      <td>${created ? created.toLocaleString() : '—'}</td>
+      <td><div style="font-weight:800">${o.name||'—'}</div><div style="color:var(--muted);font-size:12px">${o.phone||''}</div></td>
+      <td class="items" title="${itemsTxt}">${itemsTxt||'—'}</td>
+      <td>
+        ${disabled ? `
+          <span class="doneMark">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M20 7L9 18l-5-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            ${o.status==='completed' ? 'Delivered' : 'Canceled'}
+          </span>
+        ` : `
+          <select class="status-select" data-id="${o.id}">
+            <option value="paid" ${o.status==='paid'?'selected':''}>Confirmed</option>
+            <option value="preparing" ${(o.status==='paid'&&o.statusStage===0)?'selected':''}>Preparing</option>
+            <option value="out_for_delivery" ${o.status==='out_for_delivery'?'selected':''}>Out for delivery</option>
+            <option value="completed" ${o.status==='completed'?'selected':''}>Delivered</option>
+            <option value="canceled" ${o.status==='canceled'?'selected':''}>Canceled</option>
+          </select>
+        `}
+      </td>
+      <td>
+        <div class="row-actions">
+          <button class="btn ghost" data-act="chat" data-id="${o.id}" ${disabled?'disabled':''}>Open Chat</button>
+          <button class="btn" data-act="send" data-id="${o.id}" ${disabled?'disabled':''}>Send Link</button>
+          <button class="btn good" data-act="done" data-id="${o.id}" ${disabled?'disabled':''}>Mark Delivered</button>
+          <button class="btn bad" data-act="cancel" data-id="${o.id}" ${disabled?'disabled':''}>Cancel</button>
+        </div>
+      </td>`;
+    body.appendChild(tr);
   }
-
-  for(const o of list){
-    const card = document.createElement("div");
-    card.className = "order";
-
-    const top = document.createElement("div");
-    top.className = "order-top";
-
-    const badges = document.createElement("div");
-    badges.className = "badges";
-    const bId = document.createElement("div");
-    bId.className = "badge";
-    bId.textContent = `#${o.id}`;
-    badges.appendChild(bId);
-
-    const stageText = byStageText(o.statusStage ?? 0);
-    const bStage = document.createElement("div");
-    bStage.className = "badge " + (stageText === "completed" ? "ok" : stageText === "canceled" ? "bad" : stageText === "out_for_delivery" ? "" : "warn");
-    bStage.textContent = stageText.replace(/_/g," ");
-    badges.appendChild(bStage);
-
-    const bWhen = document.createElement("div");
-    bWhen.className = "badge";
-    bWhen.textContent = formatDateTime(o.createdAt);
-    badges.appendChild(bWhen);
-
-    top.appendChild(badges);
-    card.appendChild(top);
-
-    const ttl = document.createElement("div");
-    ttl.className = "order-title";
-    ttl.textContent = `${o.name || "Customer"} • ${o.phone || "—"}`;
-    card.appendChild(ttl);
-
-    const sub = document.createElement("div");
-    sub.className = "order-sub";
-    sub.textContent = o.address || "—";
-    card.appendChild(sub);
-
-    const items = document.createElement("div");
-    items.className = "items";
-    items.innerHTML = (o.items || []).map(i => `• ${i.category} <span class="dot">—</span> ${i.amount}`).join("<br>");
-    card.appendChild(items);
-
-    const actions = document.createElement("div");
-    actions.className = "actions";
-
-    const btnLink = document.createElement("button");
-    btnLink.className = "btn primary";
-    btnLink.textContent = "Send link";
-    btnLink.onclick = ()=>{
-      promptLink("Paste the delivery / tracking link", "https://...", async (val)=>{
-        try{
-          const j = await apiPost(`/api/admin/orders/${o.id}/sendlink`, { link: val });
-          if(!j.ok) throw new Error(j.error || "sendlink_failed");
-          await refreshAll();
-        }catch(e){ showAlert("Failed to send link: " + e.message); }
-      });
-    };
-
-    const btnDelivered = document.createElement("button");
-    btnDelivered.className = "btn ok";
-    btnDelivered.textContent = "Delivered";
-    btnDelivered.onclick = async ()=>{
-      try{
-        const j = await apiPost(`/api/admin/orders/${o.id}/stage`, { stage: 2 });
-        if(!j.ok) throw new Error(j.error || "update_failed");
-        await refreshAll();
-      }catch(e){ showAlert("Failed to update: " + e.message); }
-    };
-
-    const btnCancel = document.createElement("button");
-    btnCancel.className = "btn bad";
-    btnCancel.textContent = "Cancel";
-    btnCancel.onclick = ()=>{
-      promptLink("Type CONFIRM to cancel this order", "CONFIRM", async (val)=>{
-        if(val !== "CONFIRM") return;
-        try{
-          const j = await apiPost(`/api/admin/orders/${o.id}/stage`, { stage: -1 });
-          if(!j.ok) throw new Error(j.error || "cancel_failed");
-          await refreshAll();
-        }catch(e){ showAlert("Failed to cancel: " + e.message); }
-      });
-    };
-
-    actions.appendChild(btnLink);
-    actions.appendChild(btnDelivered);
-    actions.appendChild(btnCancel);
-    card.appendChild(actions);
-
-    // delivered visuals
-    const isDone = (o.status === "completed") || (o.statusStage === 2);
-    if(isDone){
-      btnLink.disabled = btnDelivered.disabled = btnCancel.disabled = true;
-      const mark = document.createElement("div");
-      mark.className = "delivered-mark";
-      mark.innerHTML = `<svg viewBox="0 0 24 24" fill="none"><path d="M20 6L9 17l-5-5" stroke="#9ee7b9" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg><span>Delivered</span>`;
-      card.appendChild(mark);
-    }
-
-    elOrdersList.appendChild(card);
-  }
-}
-
-/* -------------------- LOAD / REFRESH -------------------- */
-async function loadShop(){
-  const j = await apiGet("/api/admin/shop");
-  if(!j.ok) throw new Error(j.error || "shop_failed");
-  setToggleUI(!!j.open);
-}
-async function setShop(open){
-  const j = await apiPost("/api/admin/shop", { open: !!open });
-  if(!j.ok) throw new Error(j.error || "shop_set_failed");
-  setToggleUI(!!j.open);
 }
 async function loadOrders(){
-  const j = await apiGet("/api/admin/orders");
-  if(!j.ok) throw new Error(j.error || "db_error");
-  ORDERS = j.orders || [];
+  const err = document.getElementById('ordersError');
+  err.style.display='none';
+  try{
+    const data = await api('/api/admin/orders');
+    ORDERS = data.orders || [];
+    renderOrders();
+  }catch(e){
+    ORDERS = [];
+    renderOrders();
+    err.textContent = (''+e.message).includes('missing initData') || (''+e.message).includes('unauthorized')
+      ? 'Unauthorized: Please open inside Telegram (Admin WebApp).'
+      : ('Failed to load orders: '+e.message);
+    err.style.display='inline-block';
+  }
 }
 
-async function refreshAll(){
-  await Promise.all([loadShop(), loadOrders()]);
-  applyKpi();
-  renderOrders();
+/* ========= ACTIONS ========= */
+async function setStage(orderId, v){
+  let stage = 0;
+  if (v==='paid'||v==='preparing') stage = 0;
+  else if (v==='out_for_delivery') stage = 1;
+  else if (v==='completed') stage = 2;
+  else if (v==='canceled') stage = -1;
+  await api(`/api/admin/orders/${orderId}/stage`, { method:'POST', body: JSON.stringify({ stage }) });
+  await loadOrders();
+  if (CURRENT_ORDER_ID === orderId) await loadChat(orderId);
+}
+async function sendLink(orderId){
+  const link = prompt('Paste delivery/tracking link:');
+  if (!link) return;
+  await api(`/api/admin/orders/${orderId}/sendlink`, { method:'POST', body: JSON.stringify({ link }) });
+  alert('Link sent to customer.');
+}
+async function markDone(orderId){
+  await api(`/api/admin/orders/${orderId}/stage`, { method:'POST', body: JSON.stringify({ stage:2 }) });
+  await loadOrders();
+}
+async function cancelOrder(orderId){
+  if (!confirm('Cancel this order?')) return;
+  await api(`/api/admin/orders/${orderId}/stage`, { method:'POST', body: JSON.stringify({ stage:-1 }) });
+  await loadOrders();
 }
 
-/* -------------------- EVENTS -------------------- */
-elBtnRefresh.addEventListener("click", ()=> refreshAll().catch(e => showAlert("Refresh failed: " + e.message)));
-elShopToggle.addEventListener("click", async ()=>{
-  try{ await setShop(!SHOP_OPEN); }catch(e){ showAlert("Toggle failed: " + e.message); }
+/* ========= CHAT ========= */
+function setChatEnabled(on){
+  document.getElementById('msgInput').disabled = !on;
+  document.getElementById('sendBtn').disabled = !on;
+}
+function setChatHead(order){
+  const el = document.getElementById('chatHead');
+  el.textContent = order ? `Order #${order.id} — ${order.name||'Customer'} • ${order.phone||''}` : 'Select an order to view messages';
+}
+async function loadChat(orderId){
+  CURRENT_ORDER_ID = orderId;
+  const order = ORDERS.find(o=>o.id===orderId) || null;
+  setChatHead(order);
+  setChatEnabled(true);
+  const data = await api(`/api/admin/orders/${orderId}/messages`);
+  const box = document.getElementById('messages');
+  box.innerHTML = '';
+  for (const m of (data.messages||[])){
+    const d = document.createElement('div');
+    d.className = `msg ${m.sender}`;
+    d.innerHTML = `<div class="b">${escapeHtml(m.message)}</div><small>${new Date(m.created_at||m.createdAt).toLocaleString()}</small>`;
+    box.appendChild(d);
+  }
+  box.scrollTop = box.scrollHeight;
+}
+async function sendChat(){
+  const input = document.getElementById('msgInput');
+  const text = input.value.trim();
+  if (!text || !CURRENT_ORDER_ID) return;
+  await api(`/api/admin/orders/${CURRENT_ORDER_ID}/messages`, { method:'POST', body: JSON.stringify({ message: text }) });
+  input.value = '';
+  await loadChat(CURRENT_ORDER_ID);
+}
+
+/* ========= WIRING ========= */
+document.getElementById('refreshBtn').addEventListener('click', loadOrders);
+document.getElementById('shopToggle').addEventListener('click', toggleShop);
+document.getElementById('sendBtn').addEventListener('click', sendChat);
+document.getElementById('statusFilter').addEventListener('change', renderOrders);
+
+document.getElementById('ordersBody').addEventListener('change', (e)=>{
+  const sel = e.target.closest('.status-select');
+  if (!sel) return;
+  setStage(Number(sel.dataset.id), sel.value).catch(err=>alert('Failed: '+err.message));
 });
-elOrdersFilter.addEventListener("change", ()=> applyKpi() || renderOrders());
-elSalesTimeline.addEventListener("change", ()=> applyKpi());
+document.getElementById('ordersBody').addEventListener('click', (e)=>{
+  const btn = e.target.closest('button[data-act]');
+  if (!btn) return;
+  const id = Number(btn.dataset.id);
+  const act = btn.dataset.act;
+  if (act==='send') return sendLink(id).catch(err=>alert('Failed: '+err.message));
+  if (act==='done') return markDone(id).catch(err=>alert('Failed: '+err.message));
+  if (act==='cancel') return cancelOrder(id).catch(err=>alert('Failed: '+err.message));
+  if (act==='chat') return loadChat(id).catch(err=>alert('Failed: '+err.message));
+});
 
-/* -------------------- BOOT -------------------- */
-(function boot(){
-  initTelegram();
-  refreshAll().catch(e => showAlert("Failed to load orders: " + (e.message || e)));
+/* ========= INIT ========= */
+(async function init(){
+  await Promise.all([
+    fetchShopState().catch(()=>{}),
+    loadOrders()
+  ]);
+  // Auto-refresh every 20s
+  setInterval(()=>loadOrders().catch(()=>{}), 20000);
 })();
 </script>
 </body>

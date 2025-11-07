@@ -2,142 +2,77 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta
-    name="viewport"
-    content="width=device-width, initial-scale=1, maximum-scale=1"
-  />
-  <title>Yelo🟡Spot — Admin Dashboard</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1" />
+  <title>Yelo🟡Spot — Admin</title>
   <style>
     :root{
-      --bg:#0d141b;
-      --card:#121b24;
-      --muted:#8aa0b3;
-      --text:#e7f0f7;
-      --accent:#ffd84d;
-      --accent-weak:#2a2f18;
-      --success:#34d399;
-      --danger:#ef4444;
-      --outline:#1a2430;
-      --chip:#0f1720;
-      --chip-text:#b7c5d3;
-      --radius:16px;
-      --gap:14px;
-      --shadow:0 8px 24px rgba(0,0,0,.35);
+      --bg:#0d141b; --card:#121b24; --outline:#1a2430; --text:#e7f0f7; --muted:#8aa0b3;
+      --accent:#ffd84d; --shadow:0 8px 24px rgba(0,0,0,.35);
     }
-    *{box-sizing:border-box}
-    html,body{height:100%}
-    body{
-      margin:0; font:500 14px/1.35 system-ui,-apple-system,Segoe UI,Inter,Roboto,Arial;
-      color:var(--text); background:var(--bg);
-    }
-    .wrap{max-width:960px; margin:0 auto; padding:14px 14px 80px}
-
-    /* header */
-    .topbar{
-      display:flex; align-items:center; gap:10px; margin:4px 2px 12px;
-    }
-    .brand{
-      font-size:24px; font-weight:800; letter-spacing:.3px;
-      display:flex; align-items:center; gap:8px;
-    }
-    .brand-dot{width:10px; height:10px; border-radius:50%; background:#f8c300; box-shadow:0 0 0 4px rgba(248,195,0,.12)}
-    .chip{
-      background:var(--chip); color:var(--chip-text); border:1px solid var(--outline);
-      padding:6px 10px; border-radius:999px; display:inline-flex; align-items:center; gap:8px;
-    }
-    .switch {display:inline-flex; align-items:center; gap:10px}
-    .switch input{appearance:none; width:36px; height:22px; border-radius:999px; background:#243142; position:relative; outline:none; cursor:pointer; border:1px solid var(--outline)}
+    *{box-sizing:border-box} html,body{height:100%}
+    body{margin:0;background:var(--bg);color:var(--text);font:500 14px/1.35 system-ui,Inter,Roboto,Segoe UI,Arial}
+    .wrap{max-width:960px;margin:0 auto;padding:12px 12px 80px}
+    .topbar{display:flex;gap:10px;align-items:center;margin:4px 2px 10px}
+    .brand{font-size:24px;font-weight:800;display:flex;gap:8px;align-items:center}
+    .dot{width:10px;height:10px;border-radius:50%;background:#f8c300;box-shadow:0 0 0 4px rgba(248,195,0,.12)}
+    .chip{background:#0f1720;color:#b7c5d3;border:1px solid var(--outline);padding:6px 10px;border-radius:999px}
+    .btn{border:1px solid var(--outline);background:#17212b;color:#cfe0ee;border-radius:10px;padding:8px 12px;font-weight:700;cursor:pointer}
+    .btn.yellow{background:#2a2f18;color:#ffea8a;border-color:#3a3c23}
+    .btn.red{background:#2a1417;border-color:#402328;color:#ffc6c6}
+    .btn.green{background:#14271d;border-color:#1f3f2c;color:#bff3d5}
+    .btn[disabled]{opacity:.45;cursor:not-allowed}
+    .switch{display:flex;align-items:center;gap:10px}
+    .switch input{appearance:none;width:36px;height:22px;border-radius:999px;background:#243142;border:1px solid var(--outline);position:relative}
     .switch input:checked{background:#1b3d2c}
-    .switch input:before{content:""; position:absolute; top:2px; left:2px; width:18px; height:18px; border-radius:50%; background:#aab8c5; transition:.18s}
-    .switch input:checked:before{left:16px; background:#34d399}
-    .btn{
-      background:linear-gradient(0deg,#2a2f18,#2a2f18); color:#ffea8a;
-      border:1px solid #3a3c23; border-radius:12px; padding:10px 14px; font-weight:700; box-shadow:var(--shadow);
-    }
-    .btn:active{transform:translateY(1px); opacity:.9}
-    .btn.small{padding:8px 12px; border-radius:10px}
+    .switch input:before{content:"";position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;background:#aab8c5;transition:.18s}
+    .switch input:checked:before{left:16px;background:#34d399}
 
-    /* stats (thinner) */
-    .stats{display:grid; grid-template-columns:1fr 1fr; gap:var(--gap); margin:8px 0 14px}
-    .stat{
-      background:var(--card); border:1px solid var(--outline); border-radius:var(--radius);
-      padding:10px 12px; min-height:78px; box-shadow:var(--shadow);
-      display:flex; flex-direction:column; justify-content:center;
-    }
-    .stat .title{color:var(--muted); font-weight:700; letter-spacing:.3px; margin-bottom:6px}
-    .stat .value{font-size:34px; font-weight:900; letter-spacing:.2px}
+    .stats{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:8px 0 12px}
+    .stat{background:var(--card);border:1px solid var(--outline);border-radius:14px;padding:10px 12px;min-height:74px;box-shadow:var(--shadow);display:flex;flex-direction:column;justify-content:center}
+    .stat .title{color:var(--muted);font-weight:700;margin-bottom:4px}
+    .stat .value{font-size:32px;font-weight:900}
 
-    /* orders list */
     h2{margin:12px 2px}
-    .orders{display:flex; flex-direction:column; gap:12px}
-    .card{
-      background:var(--card); border:1px solid var(--outline); border-radius:var(--radius);
-      padding:12px; box-shadow:var(--shadow);
-    }
-    .row{display:flex; align-items:center; gap:10px; flex-wrap:wrap}
-    .pill{background:#0e1620; border:1px solid var(--outline); color:#90a9bf; padding:6px 10px; border-radius:999px; font-weight:700}
-    .pill.success{color:#a9f3cc; background:#0b1d17; border-color:#163626}
-    .pill.warn{color:#ffe1e1; background:#2a1313; border-color:#3a2020}
-    .title-row{display:flex; align-items:center; justify-content:space-between; gap:10px; margin:8px 0 6px}
-    .order-title{font-size:18px; font-weight:900; letter-spacing:.2px}
-    .addr{color:#b8c7d6; margin:6px 0 8px}
+    .orders{display:flex;flex-direction:column;gap:12px}
+    .card{background:var(--card);border:1px solid var(--outline);border-radius:14px;padding:12px;box-shadow:var(--shadow)}
+    .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+    .pill{background:#0e1620;border:1px solid var(--outline);color:#90a9bf;padding:6px 10px;border-radius:999px;font-weight:700}
+    .pill.ok{background:#0b1d17;border-color:#163626;color:#a9f3cc}
+    .pill.bad{background:#2a1313;border-color:#3a2020;color:#ffe1e1}
+    .title-row{display:flex;justify-content:space-between;align-items:center;margin:8px 0 6px}
+    .order-title{font-size:18px;font-weight:900}
+    .addr{color:#b8c7d6;margin:6px 0 8px}
     .items{color:#cdd9e4}
-    .actions{display:flex; gap:8px; flex-wrap:wrap; margin-top:10px}
-    .btn.gray{background:#17212b; border:1px solid var(--outline); color:#cfe0ee}
-    .btn.red{background:#2a1417; border:1px solid #402328; color:#ffc6c6}
-    .btn.green{background:#14271d; border:1px solid #1f3f2c; color:#bff3d5}
+    .actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
 
-    /* chat panel (thinner/compact) */
-    .chat{
-      margin-top:16px;
-      background:var(--card); border:1px solid var(--outline); border-radius:var(--radius);
-      box-shadow:var(--shadow); padding:10px 10px 12px;
-    }
-    .chat .head{font-weight:800; margin:6px 2px 10px}
-    .thread{
-      border:1px solid var(--outline); background:#0e141b; border-radius:12px;
-      padding:8px; height:260px; overflow:auto; /* thinner than before */
-    }
-    .bubble{max-width:85%; padding:10px 12px; border-radius:12px; margin:6px 0}
-    .bubble.admin{background:#0e2240; color:#d6e6ff; margin-left:auto}
-    .bubble.customer{background:#1b2a1f; color:#d3f2dd; margin-right:auto}
-    .meta{font-size:11px; opacity:.75; display:block; margin-bottom:4px}
-    .composer{display:flex; gap:8px; margin-top:10px}
-    .composer input{
-      flex:1; background:#0e1620; border:1px solid var(--outline); color:var(--text);
-      padding:10px 12px; border-radius:12px; outline:none;
-    }
+    .chat{margin-top:14px;background:var(--card);border:1px solid var(--outline);border-radius:14px;box-shadow:var(--shadow);padding:10px}
+    .thread{border:1px solid var(--outline);background:#0e141b;border-radius:12px;padding:8px;height:240px;overflow:auto}
+    .bubble{max-width:85%;padding:10px 12px;border-radius:12px;margin:6px 0}
+    .bubble.admin{background:#0e2240;color:#d6e6ff;margin-left:auto}
+    .bubble.customer{background:#1b2a1f;color:#d3f2dd;margin-right:auto}
+    .meta{font-size:11px;opacity:.75;display:block;margin-bottom:4px}
+    .composer{display:flex;gap:8px;margin-top:8px}
+    .composer input{flex:1;background:#0e1620;border:1px solid var(--outline);color:var(--text);border-radius:10px;padding:10px 12px}
 
-    /* mobile spacing */
-    @media (max-width:720px){
-      .wrap{padding:10px 10px 60px}
-      .stat .value{font-size:30px}
-      .orders .card{padding:10px}
-    }
+    @media (max-width:720px){.wrap{padding:10px 10px 60px}.stat .value{font-size:28px}}
   </style>
 </head>
 <body>
   <div class="wrap">
     <div class="topbar">
-      <div class="brand">
-        Yelo <span class="brand-dot"></span> Spot
-      </div>
+      <div class="brand">Yelo <span class="dot"></span> Spot</div>
       <span class="chip">Admin dashboard</span>
       <div style="flex:1"></div>
-
-      <div class="switch">
-        <span>Shop</span>
-        <input id="shopToggle" type="checkbox" />
-      </div>
-      <button id="refreshBtn" class="btn">↻ Refresh</button>
+      <div class="switch"><span>Shop</span><input id="shopToggle" type="checkbox" /></div>
+      <button id="refreshBtn" class="btn yellow">↻ Refresh</button>
     </div>
 
     <section class="stats">
-      <div class="stat" id="ordersStat">
+      <div class="stat">
         <div class="title">Orders</div>
         <div class="row" style="justify-content:space-between">
           <div class="value" id="ordersCount">0</div>
-          <select id="timeFilter" class="chip" style="padding:6px 10px">
+          <select id="timeFilter" class="chip">
             <option value="all" selected>All</option>
             <option value="today">Today</option>
           </select>
@@ -147,7 +82,7 @@
         <div class="title">Sales</div>
         <div class="row" style="justify-content:space-between">
           <div class="value">₱<span id="salesTotal">0</span></div>
-          <select id="salesFilter" class="chip" style="padding:6px 10px">
+          <select id="salesFilter" class="chip">
             <option value="today" selected>Today</option>
             <option value="all">All time</option>
           </select>
@@ -158,255 +93,216 @@
     <h2>All orders</h2>
     <div id="orders" class="orders"></div>
 
-    <!-- chat panel (sticky at bottom; opens for selected order) -->
     <div id="chat" class="chat" style="display:none">
-      <div class="head">Chat</div>
-      <div class="chip" id="chatOrderChip" style="margin:0 2px 8px"></div>
+      <div class="chip" id="chatOrderChip" style="margin-bottom:8px"></div>
       <div id="thread" class="thread"></div>
       <div class="composer">
         <input id="composerInput" type="text" placeholder="Type a message to customer…">
-        <button id="sendBtn" class="btn small">Send</button>
+        <button id="sendBtn" class="btn">Send</button>
       </div>
-      <div style="color:#9fb2c5; margin-top:8px">Messages sent from here appear to the customer as <b>“Admin”</b>.</div>
+      <div style="color:#9fb2c5;margin-top:6px">Messages from here appear to the customer as <b>“Admin”</b>.</div>
     </div>
   </div>
 
   <script>
-    // ——— Telegram init header ———
-    // Works both inside Telegram and when opened directly (for quick testing).
+    /* ---------------- API helper with Telegram header + errors ---------------- */
     const getInitData = () => {
-      try {
-        if (window.Telegram && Telegram.WebApp && Telegram.WebApp.initData) {
-          return Telegram.WebApp.initData;
-        }
-      } catch {}
-      const p = new URLSearchParams(location.search);
-      return p.get('initData') || '';
+      try { return (window.Telegram && Telegram.WebApp && Telegram.WebApp.initData) || ''; }
+      catch { return ''; }
     };
-
-    function tgFetch(url, opts = {}) {
+    async function tgFetch(url, opts = {}) {
       const headers = Object.assign(
-        { 'Content-Type': 'application/json', 'X-Telegram-Init-Data': getInitData() },
+        {'Content-Type':'application/json','X-Telegram-Init-Data': getInitData()},
         opts.headers || {}
       );
-      return fetch(url, Object.assign(opts, { headers }));
+      const res = await fetch(url, Object.assign(opts,{headers}));
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      let data;
+      try { data = await res.json(); } catch { throw new Error('Bad JSON'); }
+      if (data && data.ok === false && data.error === 'unauthorized') {
+        alert('Unauthorized: please open inside Telegram (Admin WebApp).');
+        throw new Error('Unauthorized');
+      }
+      return data;
     }
 
-    // ——— state ———
+    /* ---------------- State ---------------- */
     let ORDERS = [];
     let CURRENT_ORDER = null;
 
-    // ——— helpers ———
+    /* ---------------- Utils ---------------- */
     const peso = n => Number(n || 0).toLocaleString('en-PH');
-    const fmtTime = iso => {
-      try {
-        const d = new Date(iso);
-        return d.toLocaleString(undefined, { hour12: true });
-      } catch { return iso || ''; }
-    };
-    const isToday = iso => {
-      const d = new Date(iso); const now = new Date();
-      return d.toDateString() === now.toDateString();
-    };
-    const sumOrderPesos = (order) => {
-      // Parse any "₱123" in item.amount; poppers show "₱700 • Brand"
-      let sum = 0;
-      (order.items||[]).forEach(it => {
-        const m = String(it.amount||'').match(/₱\s*([\d,]+)/);
-        if (m) sum += Number(m[1].replace(/,/g,''));
-      });
-      return sum;
-    };
+    const fmtTime = iso => { const d = new Date(iso); return d.toLocaleString(undefined,{hour12:true}); };
+    const isToday = iso => (new Date(iso)).toDateString() === (new Date()).toDateString();
+    const sumOrderPesos = o => (o.items||[]).reduce((a,it)=>{
+      const m = String(it.amount||'').match(/₱\s*([\d,]+)/); return a + (m? +m[1].replace(/,/g,''):0);
+    },0);
 
-    // ——— shop toggle ———
+    /* ---------------- Shop toggle ---------------- */
     async function loadShopState(){
-      const r = await tgFetch('/api/admin/shop');
-      const j = await r.json();
-      if (j.ok) {
+      try{
+        const j = await tgFetch('/api/admin/shop');
         document.getElementById('shopToggle').checked = !!j.open;
-      }
+      }catch(e){ /* silent in browser */ }
     }
     async function setShopState(open){
-      await tgFetch('/api/admin/shop', { method:'POST', body: JSON.stringify({ open })});
+      try{ await tgFetch('/api/admin/shop',{method:'POST',body:JSON.stringify({open})}); }
+      catch(e){ alert('Failed to toggle shop'); }
     }
 
-    // ——— orders ———
+    /* ---------------- Orders ---------------- */
     async function loadOrders(){
-      const r = await tgFetch('/api/admin/orders');
-      const j = await r.json();
-      if (!j.ok) throw new Error('Unauthorized: open inside Telegram (Admin WebApp).');
+      const j = await tgFetch('/api/admin/orders');
       ORDERS = j.orders || [];
       renderStats();
       renderOrders();
     }
-
     function filtered(list){
-      const span = document.getElementById('timeFilter').value;
-      if (span === 'today') return list.filter(o => isToday(o.createdAt));
-      return list;
+      return document.getElementById('timeFilter').value === 'today'
+        ? list.filter(o=>isToday(o.createdAt)) : list;
     }
-
     function renderStats(){
       const list = filtered(ORDERS);
       document.getElementById('ordersCount').textContent = list.length;
-
-      const salesSpan = document.getElementById('salesFilter').value;
-      const source = salesSpan === 'today' ? ORDERS.filter(o => isToday(o.createdAt)) : ORDERS;
-      const sales = source
-        .filter(o => (o.statusStage ?? 0) !== -1) // exclude canceled
-        .reduce((a, o) => a + sumOrderPesos(o), 0);
-      document.getElementById('salesTotal').textContent = peso(sales);
+      const source = document.getElementById('salesFilter').value === 'today'
+        ? ORDERS.filter(o=>isToday(o.createdAt)) : ORDERS;
+      const total = source.filter(o => (o.statusStage ?? 0) !== -1)
+                          .reduce((a,o)=>a+sumOrderPesos(o),0);
+      document.getElementById('salesTotal').textContent = peso(total);
     }
 
     function stagePill(o){
       const st = o.status || '';
       const canceled = (o.statusStage ?? 0) === -1 || st === 'canceled';
-      if (canceled) return '<span class="pill warn">canceled</span>';
-      if (st === 'completed') return '<span class="pill success">delivered</span>';
-      if (st === 'out_for_delivery') return '<span class="pill success" style="opacity:.85">on the way</span>';
+      if (canceled) return '<span class="pill bad">canceled</span>';
+      if (st === 'completed') return '<span class="pill ok">delivered</span>';
+      if (st === 'out_for_delivery') return '<span class="pill ok" style="opacity:.85">on the way</span>';
       return '<span class="pill">confirmed</span>';
     }
-
     function itemsLine(items){
       if (!items || !items.length) return '';
-      return items.map(i => `• <b>${i.category}</b> — ${i.amount}`).join('<br>');
+      return items.map(i=>`• <b>${i.category}</b> — ${i.amount}`).join('<br>');
     }
 
     function renderOrders(){
       const box = document.getElementById('orders');
       box.innerHTML = '';
-      filtered(ORDERS).forEach((o, idx) => {
-        const idChip = `<span class="pill">#${o.id}</span>`;
-        const stage = stagePill(o);
-        const when = `<span class="pill">${fmtTime(o.createdAt)}</span>`;
-
-        const disabled = (o.statusStage ?? 0) < 0 || (o.status === 'completed');
-
+      filtered(ORDERS).forEach(o=>{
+        const disabled = (o.statusStage ?? 0) < 0 || o.status === 'completed';
         const card = document.createElement('div');
         card.className = 'card';
+        card.dataset.orderId = o.id; // for event delegation
         card.innerHTML = `
-          <div class="row">${idChip}${stage}${when}</div>
-
+          <div class="row">
+            <span class="pill">#${o.id}</span>
+            ${stagePill(o)}
+            <span class="pill">${fmtTime(o.createdAt)}</span>
+          </div>
           <div class="title-row">
             <div class="order-title">${o.name || 'Customer'} • ${o.phone || o.customerChatId || ''}</div>
           </div>
-
           <div class="addr">${o.address || ''}</div>
-
           <div class="items">${itemsLine(o.items || [])}</div>
-
           <div class="actions">
-            <button class="btn gray" data-act="sendlink" ${disabled?'disabled':''}>Send link</button>
-            <button class="btn gray" data-act="done" ${disabled?'disabled':''}>Order confirmed</button>
+            <button class="btn" data-act="sendlink" ${disabled?'disabled':''}>Send link</button>
+            <button class="btn" data-act="done" ${disabled?'disabled':''}>Order confirmed</button>
             <button class="btn red" data-act="cancel" ${disabled?'disabled':''}>Cancel</button>
-            <button class="btn" style="margin-left:auto" data-act="chat">Chat</button>
+            <button class="btn yellow" style="margin-left:auto" data-act="chat">Chat</button>
           </div>
         `;
-
-        card.querySelectorAll('button').forEach(b=>{
-          b.addEventListener('click', ()=> handleAction(o, b.dataset.act));
-        });
-
         box.appendChild(card);
       });
     }
 
-    async function handleAction(order, act){
-      if (act === 'chat'){
-        openChat(order);
-        return;
-      }
-      if (act === 'sendlink'){
-        const link = prompt('Paste delivery/tracking link:');
-        if (!link) return;
-        await tgFetch(`/api/admin/orders/${order.id}/sendlink`, { method:'POST', body: JSON.stringify({ link }) });
-        await loadOrders();
-        if (CURRENT_ORDER && CURRENT_ORDER.id === order.id) openChat(order); // refresh messages if open
-        return;
-      }
-      if (act === 'done'){
-        await tgFetch(`/api/admin/orders/${order.id}/stage`, { method:'POST', body: JSON.stringify({ stage: 2 }) });
-        await loadOrders();
-        return;
-      }
-      if (act === 'cancel'){
-        if (!confirm('Cancel this order?')) return;
-        await tgFetch(`/api/admin/orders/${order.id}/stage`, { method:'POST', body: JSON.stringify({ stage: -1 }) });
-        await loadOrders();
-      }
-    }
+    /* ---- EVENT DELEGATION so buttons ALWAYS work ---- */
+    document.getElementById('orders').addEventListener('click', async (e)=>{
+      const btn = e.target.closest('button[data-act]');
+      if (!btn) return;
+      const card = btn.closest('.card');
+      if (!card) return;
+      const orderId = Number(card.dataset.orderId);
+      const order = ORDERS.find(o => o.id === orderId);
+      if (!order) return;
 
-    // ——— chat ———
+      const act = btn.dataset.act;
+      try{
+        if (act === 'chat') { openChat(order); return; }
+        if (act === 'sendlink') {
+          const link = prompt('Paste delivery/tracking link:');
+          if (!link) return;
+          await tgFetch(`/api/admin/orders/${order.id}/sendlink`, { method:'POST', body: JSON.stringify({ link }) });
+          await loadOrders();
+          if (CURRENT_ORDER?.id === order.id) openChat(order);
+          return;
+        }
+        if (act === 'done') {
+          await tgFetch(`/api/admin/orders/${order.id}/stage`, { method:'POST', body: JSON.stringify({ stage: 2 }) });
+          await loadOrders(); return;
+        }
+        if (act === 'cancel') {
+          if (!confirm('Cancel this order?')) return;
+          await tgFetch(`/api/admin/orders/${order.id}/stage`, { method:'POST', body: JSON.stringify({ stage: -1 }) });
+          await loadOrders(); return;
+        }
+      } catch(err){
+        console.error(err); alert('Action failed. Please try again inside Telegram.');
+      }
+    });
+
+    /* ---------------- Chat ---------------- */
     async function loadMessages(orderId){
-      const r = await tgFetch(`/api/admin/orders/${orderId}/messages`);
-      const j = await r.json();
-      return j.ok ? (j.messages||[]) : [];
+      try{
+        const j = await tgFetch(`/api/admin/orders/${orderId}/messages`);
+        return j.ok ? (j.messages||[]) : [];
+      }catch(e){ return []; }
     }
-
+    function escapeHtml(s){
+      return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+    }
     function renderThread(msgs){
       const box = document.getElementById('thread');
       box.innerHTML = '';
       msgs.forEach(m=>{
-        const div = document.createElement('div');
-        div.className = 'bubble ' + (m.sender === 'admin' ? 'admin' : 'customer');
-        div.innerHTML = `<span class="meta">${m.sender[0].toUpperCase()+m.sender.slice(1)} • ${fmtTime(m.created_at || m.createdAt)}</span>${escapeHtml(m.message)}`;
-        box.appendChild(div);
+        const d = document.createElement('div');
+        d.className = 'bubble ' + (m.sender === 'admin' ? 'admin' : 'customer');
+        d.innerHTML = `<span class="meta">${m.sender[0].toUpperCase()+m.sender.slice(1)} • ${fmtTime(m.created_at || m.createdAt)}</span>${escapeHtml(m.message)}`;
+        box.appendChild(d);
       });
       box.scrollTop = box.scrollHeight;
     }
-
-    function escapeHtml(s){
-      return String(s||'')
-        .replace(/&/g,'&amp;')
-        .replace(/</g,'&lt;')
-        .replace(/>/g,'&gt;')
-        .replace(/"/g,'&quot;')
-        .replace(/'/g,'&#39;');
-    }
-
     async function openChat(order){
       CURRENT_ORDER = order;
       document.getElementById('chat').style.display = '';
-      document.getElementById('chatOrderChip').textContent =
-        `#${order.id} — ${order.name || 'Customer'}`;
-
-      const msgs = await loadMessages(order.id);
-      renderThread(msgs);
+      document.getElementById('chatOrderChip').textContent = `#${order.id} — ${order.name || 'Customer'}`;
+      renderThread(await loadMessages(order.id));
     }
-
     async function sendMessage(){
       if (!CURRENT_ORDER) return;
       const input = document.getElementById('composerInput');
-      const text = input.value.trim();
-      if (!text) return;
+      const text = input.value.trim(); if (!text) return;
       input.value='';
-      await tgFetch(`/api/admin/orders/${CURRENT_ORDER.id}/messages`, {
-        method:'POST', body: JSON.stringify({ message: text })
-      });
-      const msgs = await loadMessages(CURRENT_ORDER.id);
-      renderThread(msgs);
+      try{
+        await tgFetch(`/api/admin/orders/${CURRENT_ORDER.id}/messages`, {
+          method:'POST', body: JSON.stringify({ message: text })
+        });
+        renderThread(await loadMessages(CURRENT_ORDER.id));
+      }catch(e){ alert('Failed to send message.'); }
     }
 
-    // ——— wiring ———
+    /* ---------------- Wire up ---------------- */
+    document.getElementById('sendBtn').addEventListener('click', sendMessage);
+    document.getElementById('composerInput').addEventListener('keydown', e=>{ if (e.key==='Enter') sendMessage(); });
     document.getElementById('refreshBtn').addEventListener('click', loadOrders);
     document.getElementById('shopToggle').addEventListener('change', e=> setShopState(e.target.checked));
     document.getElementById('timeFilter').addEventListener('change', ()=>{ renderStats(); renderOrders(); });
     document.getElementById('salesFilter').addEventListener('change', renderStats);
-    document.getElementById('sendBtn').addEventListener('click', sendMessage);
-    document.getElementById('composerInput').addEventListener('keydown', e=>{
-      if (e.key === 'Enter') sendMessage();
-    });
 
     (async function boot(){
-      try{
-        if (window.Telegram && Telegram.WebApp) Telegram.WebApp.expand();
-      }catch{}
+      try{ if (window.Telegram && Telegram.WebApp) Telegram.WebApp.expand(); }catch{}
       await loadShopState();
       await loadOrders();
     })();
   </script>
-
-  <!-- Telegram WebApp SDK (optional; safe if unavailable when testing in browser) -->
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
 </body>
 </html>

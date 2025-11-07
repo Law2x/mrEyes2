@@ -56,6 +56,15 @@ small{color:var(--muted)}
 .btn-ghost{background:#232938;color:var(--text)}
 .btn-danger{background:var(--danger);color:#fff}
 .minw0{min-width:0}
+
+/* Delivered / Canceled big status row */
+.doneRow{display:flex;align-items:center;gap:12px;margin-top:10px}
+.iconCircle{width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;
+  box-shadow:0 8px 18px rgba(0,0,0,.35);font-size:24px;font-weight:900}
+.icon--ok{background:#0f2a23;border:2px solid var(--success);color:var(--success)}
+.icon--x{background:#2a1418;border:2px solid var(--danger);color:#ff8a95}
+.doneText{font-weight:900;letter-spacing:.3px}
+.doneSub{color:var(--muted);font-size:12px}
 </style>
 </head>
 <body>
@@ -182,12 +191,43 @@ function renderAll(){
   list.innerHTML = filtered.map(o => {
     const k = stageKey(o.statusStage);
     const badgeClass = k==='delivered' ? 'badge--ok' : (k==='out' ? 'badge--warn' : 'badge--muted');
+
     const options = `
       <option value="confirmed" ${k==='confirmed'?'selected':''}>Order confirmed</option>
       <option value="out" ${k==='out'?'selected':''}>Out for delivery</option>
       <option value="delivered" ${k==='delivered'?'selected':''}>Delivered</option>
       <option value="canceled" ${k==='canceled'?'selected':''}>Canceled</option>
     `;
+
+    // ACTIONS OR DONE ROW
+    let footerHtml = '';
+    if(k==='delivered'){
+      footerHtml = `
+        <div class="doneRow">
+          <div class="iconCircle icon--ok">✓</div>
+          <div>
+            <div class="doneText">Delivered</div>
+            <div class="doneSub">This order is complete. Actions are disabled.</div>
+          </div>
+        </div>`;
+    } else if(k==='canceled'){
+      footerHtml = `
+        <div class="doneRow">
+          <div class="iconCircle icon--x">✖</div>
+          <div>
+            <div class="doneText">Canceled</div>
+            <div class="doneSub">No further actions available.</div>
+          </div>
+        </div>`;
+    } else {
+      footerHtml = `
+        <div class="row" style="margin-top:8px">
+          <button class="btn-sm btn-ghost js-send">Send link</button>
+          <select class="select js-stage" style="max-width:48%">${options}</select>
+          <button class="btn-sm btn-danger js-cancel" style="margin-left:auto">Cancel</button>
+        </div>`;
+    }
+
     return `
       <div class="card" data-id="${o.id}">
         <div class="row">
@@ -198,11 +238,7 @@ function renderAll(){
         <div class="title">${o.name || 'Customer'} • ${o.phone || ''}</div>
         <div class="addr">${o.address || ''}</div>
         <div class="item">${(o.items||[]).map(i=>`• ${i.category} — ${i.amount}`).join('<br>')}</div>
-        <div class="row" style="margin-top:8px">
-          <button class="btn-sm btn-ghost js-send">Send link</button>
-          <select class="select js-stage" style="max-width:48%">${options}</select>
-          <button class="btn-sm btn-danger js-cancel" style="margin-left:auto">Cancel</button>
-        </div>
+        ${footerHtml}
       </div>`;
   }).join('');
 
@@ -222,7 +258,6 @@ function wireRowActions(){
         const j = await apiPost(`/api/admin/orders/${id}/sendlink`, { link });
         if(!j.ok) throw new Error('not ok');
         alert('Delivery link sent to customer.');
-        // Setting stage to "out" happens server-side in your endpoint; refresh list:
         await fetchOrders();
       }catch(err){
         console.error(err); alert('Failed to send link.');

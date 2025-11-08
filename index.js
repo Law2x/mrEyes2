@@ -7,6 +7,9 @@ import path from "path";
 import crypto from "crypto";
 import { fileURLToPath } from "url";
 
+// 🟡 NEW (SSE): import broadcaster + routes
+import sseRoutes, { sseBroadcast } from "./routes/sseRoutes.js";
+
 // ✅ DB imports (use your db.js)
 import {
   dbInit,
@@ -17,7 +20,7 @@ import {
   setDeliveryLink,
   markReceivedByChat,
 
-  // 👇 NEW: chat helpers for 2-way chat
+  // 👇 chat helpers for 2-way chat
   latestActiveOrderByChatId,
   createMessage,
   listMessages,
@@ -56,7 +59,6 @@ const PRICE_LIST = {
     { label: "₱700 — 20 units",   callback: "amt:₱700 — 20 units" },
     { label: "₱1,000 — 30 units", callback: "amt:₱1,000 — 30 units" },
   ],
-  // Poppers top-level (all ₱700; brands can appear in multiple buckets)
   poppers: [
     { label: "⚡ Fast-acting",  callback: "cat:poppers_fast" },
     { label: "🌿 Smooth blend", callback: "cat:poppers_smooth" },
@@ -88,9 +90,13 @@ const adminState = { mode: null, deliveryOrderId: null }; // 'broadcast' | 'awai
 // ───────── EXPRESS ─────────
 const app = express();
 app.use(express.json());
+
 // Static: product QR, receipt, and the admin webapp
 app.use("/static", express.static("public"));
 app.use("/admin-app", express.static(path.join(__dirname, "public", "admin-app")));
+
+// 🟡 NEW (SSE): mount the SSE endpoints (e.g., /api/sse/orders/:orderId/stream)
+app.use("/api/sse", sseRoutes);
 
 // ───────── TG HELPERS ─────────
 async function tgSendMessage(chatId, text, extra = {}) {
@@ -256,7 +262,6 @@ function adminPanelKeyboard() {
       [{ text: "📢 Broadcast", callback_data: "admin:broadcast" }],
     ],
   };
-  // Mini-app dashboard entry (WebApp)
   if (HOST_URL) {
     kb.inline_keyboard.push([{ text: "🖥️ Open Dashboard", web_app: { url: `${HOST_URL}/admin-app` } }]);
   }
@@ -306,7 +311,6 @@ async function notifyAdminsNewOrder(order, from) {
     const r = await tgSendMessage(adminId, text);
     const j = await r.json().catch(() => null);
     if (j?.ok) {
-      // 👇 map admin message so replies go to the right customer & order
       adminMessageMap.set(j.result.message_id, { customerChatId: from.id, orderId: order.id });
     }
     if (order.coords) await tgSendLocation(adminId, order.coords.latitude, order.coords.longitude);
@@ -322,7 +326,6 @@ async function notifyAdminsNewOrder(order, from) {
 
 // ───────── TELEGRAM WEBAPP AUTH (for Admin Mini-App) ─────────
 function getWebAppSecretKey(botToken) {
-  // secret = HMAC-SHA256("WebAppData", botToken)
   return crypto.createHmac("sha256", "WebAppData").update(botToken).digest();
 }
 function checkWebAppInitData(initDataRaw) {
@@ -356,7 +359,7 @@ function requireAdminWebApp(req, res, next) {
   next();
 }
 
-// ───────── ADMIN MINI-APP API (used by /admin-app) ─────────
+// ───────── ADMIN MINI-APP API ─────────
 app.get("/api/admin/orders", requireAdminWebApp, async (req, res) => {
   try {
     const latest = await listRecentOrders(100);
@@ -389,10 +392,14 @@ app.post("/api/admin/orders/:id/stage", requireAdminWebApp, async (req, res) => 
   }
   try {
     await updateOrderStage(id, Number(stage));
-    // Notify customer about status change
+
+    // 🟡 SSE broadcast stage change so the card updates live
+    const stageText = (s => s === 1 ? "Out for delivery" : s === 2 ? "Delivered" : s === -1 ? "Canceled" : "Preparing")(Number(stage));
+    sseBroadcast(id, { type: "stage", orderId: id, stage: Number(stage), text: stageText });
+
+    // Notify customer via Telegram
     const o = await getOrderById(id);
     if (o?.customerChatId) {
-      const stageText = (s => s === 1 ? "Out for delivery" : s === 2 ? "Delivered" : s === -1 ? "Canceled" : "Preparing")(Number(stage));
       await tgSendMessage(o.customerChatId, `📦 *Status update*: Your order is now *${stageText}*.`, { parse_mode: "Markdown" });
     }
     res.json({ ok: true });
@@ -418,6 +425,10 @@ app.post("/api/admin/orders/:id/sendlink", requireAdminWebApp, async (req, res) 
       { reply_markup: { inline_keyboard: [[{ text: "📦 Mark as Received", callback_data: "order:received" }]] } }
     );
     await setDeliveryLink(id, link);
+
+    // 🟡 Broadcast link so the admin UI can show/update it live (optional)
+    sseBroadcast(id, { type: "link", orderId: id, link });
+
     res.json({ ok: true });
   } catch (e) {
     console.error(e);
@@ -425,8 +436,7 @@ app.post("/api/admin/orders/:id/sendlink", requireAdminWebApp, async (req, res) 
   }
 });
 
-// ───────── 🆕 CHAT API (Admin dashboard) ─────────
-// Get messages for an order (for the customer card thread)
+// ───────── CHAT API (Admin dashboard) ─────────
 app.get("/api/admin/orders/:id/messages", requireAdminWebApp, async (req, res) => {
   const id = Number(req.params.id);
   try {
@@ -438,7 +448,6 @@ app.get("/api/admin/orders/:id/messages", requireAdminWebApp, async (req, res) =
   }
 });
 
-// Post a message from admin to customer (from the card)
 app.post("/api/admin/orders/:id/messages", requireAdminWebApp, async (req, res) => {
   const id = Number(req.params.id);
   const { message } = req.body || {};
@@ -446,7 +455,16 @@ app.post("/api/admin/orders/:id/messages", requireAdminWebApp, async (req, res) 
     return res.status(400).json({ ok: false, error: "empty_message" });
   }
   try {
+    const savedAt = new Date().toISOString();
     await createMessage(id, "admin", message.trim());
+
+    // 🟡 SSE: push the new admin message to all open dashboards
+    sseBroadcast(id, {
+      type: "message",
+      orderId: id,
+      message: { sender: "admin", message: message.trim(), createdAt: savedAt }
+    });
+
     const o = await getOrderById(id);
     if (o?.customerChatId) {
       await tgSendMessage(o.customerChatId, `💬 *Admin*: ${message}`, { parse_mode: "Markdown" });
@@ -458,7 +476,7 @@ app.post("/api/admin/orders/:id/messages", requireAdminWebApp, async (req, res) 
   }
 });
 
-// ───────── SHOP OPEN/CLOSE API (for Admin Mini-App) ─────────
+// ───────── SHOP OPEN/CLOSE API ─────────
 app.get("/api/admin/shop", requireAdminWebApp, (req, res) => {
   try {
     res.json({ ok: true, open: SHOP_OPEN });
@@ -517,7 +535,7 @@ async function handleCallbackQuery(cbq) {
     return;
   }
 
-  // ADMIN CALLBACKS (chat-based admin center)
+  // ADMIN CALLBACKS
   if (data.startsWith("admin:")) {
     if (!isAdmin(chatId)) { await tgSendMessage(chatId, "⛔ Unauthorized."); return; }
     const [, action, arg] = data.split(":");
@@ -557,6 +575,10 @@ async function handleCallbackQuery(cbq) {
         const o = await getOrderById(id);
         if (!o) return tgSendMessage(chatId, "Order not found.");
         await updateOrderStage(id, 2);
+
+        // 🟡 Broadcast stage change to dashboards
+        sseBroadcast(id, { type: "stage", orderId: id, stage: 2, text: "Delivered" });
+
         await tgSendMessage(chatId, `✅ Order #${id} marked completed.`);
         await tgSendMessage(o.customerChatId, "✅ Your order has been marked *Completed*. Thank you!", { parse_mode: "Markdown" });
         break;
@@ -566,6 +588,10 @@ async function handleCallbackQuery(cbq) {
         const o = await getOrderById(id);
         if (!o) return tgSendMessage(chatId, "Order not found.");
         await updateOrderStage(id, -1);
+
+        // 🟡 Broadcast stage change to dashboards
+        sseBroadcast(id, { type: "stage", orderId: id, stage: -1, text: "Canceled" });
+
         await tgSendMessage(chatId, `❌ Order #${id} canceled.`);
         await tgSendMessage(o.customerChatId, "❌ Your order has been *canceled*. If this is a mistake, please /start again.", { parse_mode: "Markdown" });
         break;
@@ -591,7 +617,7 @@ async function handleCallbackQuery(cbq) {
   }
 
   if (data.startsWith("cat:")) {
-    s.category = data.slice(4); // sachet | syringe | poppers | poppers_fast | ...
+    s.category = data.slice(4);
     const text = s.category === "poppers"
       ? "🧪 Poppers — choose a style 👇"
       : `🧊 ${s.category} selected`;
@@ -607,9 +633,7 @@ async function handleCallbackQuery(cbq) {
                   { text: "⚡ Fast-acting",  callback_data: "cat:poppers_fast" },
                   { text: "🌿 Smooth blend", callback_data: "cat:poppers_smooth" },
                 ],
-                [
-                  { text: "💎 Premium",      callback_data: "cat:poppers_premium" },
-                ],
+                [{ text: "💎 Premium", callback_data: "cat:poppers_premium" }],
                 [
                   { text: "📂 Categories",   callback_data: "cat:menu" },
                   { text: "🧑‍💼 Contact Admin", callback_data: "contact:admin" },
@@ -623,7 +647,7 @@ async function handleCallbackQuery(cbq) {
   }
 
   if (data.startsWith("amt:")) {
-    const amount = data.slice(4);         // peso/units string OR poppers brand
+    const amount = data.slice(4);
     ensureCart(s);
     const itemLabel = (s.category?.startsWith("poppers")) ? `₱700 • ${amount}` : amount;
     s.cart.push({ category: s.category, amount: itemLabel });
@@ -672,14 +696,20 @@ async function handleMessage(msg) {
   const text   = (msg.text || "").trim();
   const s      = getSession(chatId);
 
-  // Admin reply bridge (replying to a forwarded customer message / order notice)
+  // Admin reply bridge
   if (isAdmin(chatId) && msg.reply_to_message) {
     const info = adminMessageMap.get(msg.reply_to_message.message_id);
     if (!info) return tgSendMessage(chatId, "⚠️ Cannot map reply to a customer.");
     await tgSendMessage(info.customerChatId, `🧑‍💼 Admin:\n${text}`);
-    // 📝 Save admin message to thread if we know the order
     if (info.orderId) {
+      const savedAt = new Date().toISOString();
       try { await createMessage(info.orderId, "admin", text); } catch {}
+      // 🟡 Broadcast admin reply into the order stream
+      sseBroadcast(info.orderId, {
+        type: "message",
+        orderId: info.orderId,
+        message: { sender: "admin", message: text, createdAt: savedAt }
+      });
     }
     if (/(grab|delivery|courier|tracking|https?:\/\/\S+)/i.test(text)) {
       await tgSendMessage(
@@ -705,6 +735,10 @@ async function handleMessage(msg) {
     );
     await tgSendMessage(chatId, `✅ Delivery link sent to customer for Order #${id}.`);
     await updateOrderStage(id, 1);
+
+    // 🟡 Broadcast updates
+    sseBroadcast(id, { type: "link", orderId: id, link: text });
+    sseBroadcast(id, { type: "stage", orderId: id, stage: 1, text: "Out for delivery" });
     return;
   }
 
@@ -713,7 +747,7 @@ async function handleMessage(msg) {
     adminState.mode = null;
     let count = 0;
     for (const [cid] of sessions) {
-      if (isAdmin(cid)) continue; // skip admin chats
+      if (isAdmin(cid)) continue;
       try { await tgSendMessage(cid, `📢 *Admin Broadcast:*\n${text}`, { parse_mode: "Markdown" }); count++; }
       catch {}
     }
@@ -728,7 +762,7 @@ async function handleMessage(msg) {
   if (text === "/orders")     { if (!isAdmin(fromId)) return; await listOrders(chatId); return; }
   if (text === "/broadcast")  { if (!isAdmin(fromId)) return; adminState.mode = "broadcast"; return tgSendMessage(chatId, "📢 Send the message to broadcast to all recent chats."); }
 
-  // Public commands (menu support)
+  // Public
   if (text === "/menu") {
     if (!SHOP_OPEN) return tgSendMessage(chatId, "🏪 The shop is closed.");
     return tgSendMessage(chatId, "🧊 Choose a product type 👇", { reply_markup: buildCategoryKeyboard() });
@@ -763,7 +797,7 @@ async function handleMessage(msg) {
     }
   }
 
-  // Start (Terms & Conditions gate + Yelo🟡Spot welcome)
+  // Start flow
   if (text === "/start" || text === "/restart") {
     if (!SHOP_OPEN) return tgSendMessage(chatId, "🏪 The shop is closed.");
     const s0 = { lastActive: Date.now(), cart: [], step: "terms" };
@@ -825,9 +859,19 @@ Tap below to proceed.
     try {
       const o = await latestActiveOrderByChatId(chatId);
       if (o) {
+        const savedAt = new Date().toISOString();
+
         // store message
         await createMessage(o.id, "customer", text);
-        // notify admins with mapping so they can reply in Telegram
+
+        // 🟡 Broadcast to all open dashboards for this order
+        sseBroadcast(o.id, {
+          type: "message",
+          orderId: o.id,
+          message: { sender: "customer", message: text, createdAt: savedAt }
+        });
+
+        // notify admins with reply mapping
         for (const adminId of ADMIN_IDS) {
           const r = await tgSendMessage(
             adminId,
@@ -918,7 +962,7 @@ async function handlePhotoOrDocument(msg) {
     paymentProof: s.paymentProof || null,
   });
 
-  // Notify admins using a composed object
+  // Notify admins
   const order = {
     id: newId,
     customerChatId: chatId,
